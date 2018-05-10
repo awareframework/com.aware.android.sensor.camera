@@ -10,7 +10,6 @@ import android.media.MediaRecorder
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
-import android.support.v4.content.ContextCompat
 import android.util.Log
 import android.util.Size
 import android.util.SparseIntArray
@@ -28,10 +27,11 @@ import java.util.concurrent.TimeUnit
  * @date 21/04/2018
  */
 class CameraSensor : AwareSensor() {
+
     companion object {
         const val TAG = "AwareCamera"
-        val VIDEO_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
-        val CONFIG: Camera.CameraConfig = Camera.CameraConfig()
+        val VIDEO_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
+        internal val CONFIG: Camera.CameraConfig = Camera.CameraConfig()
 
         private const val SENSOR_ORIENTATION_DEFAULT_DEGREES = 90
         private const val SENSOR_ORIENTATION_INVERSE_DEGREES = 270
@@ -47,6 +47,8 @@ class CameraSensor : AwareSensor() {
             append(Surface.ROTATION_180, 90)
             append(Surface.ROTATION_270, 0)
         }
+
+        internal var instance: CameraSensor? = null
     }
 
     /**
@@ -160,6 +162,8 @@ class CameraSensor : AwareSensor() {
             startRecordingVideo(CONFIG.videoLengthInMillis())
         }
 
+        instance = this
+
         return START_STICKY
     }
 
@@ -168,6 +172,8 @@ class CameraSensor : AwareSensor() {
 
         closeCamera()
         stopBackgroundThread()
+
+        instance = null
     }
 
     /**
@@ -195,7 +201,7 @@ class CameraSensor : AwareSensor() {
 
     private fun hasPermissionsGranted(permissions: Array<String>) =
             permissions.none {
-                ContextCompat.checkSelfPermission(applicationContext, it) != PackageManager.PERMISSION_GRANTED
+                applicationContext.checkCallingOrSelfPermission(it) != PackageManager.PERMISSION_GRANTED
             }
 
     /**
@@ -211,13 +217,12 @@ class CameraSensor : AwareSensor() {
             return
         }
 
-
         val manager = applicationContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         try {
             if (!cameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
                 throw RuntimeException("Time out waiting to lock camera opening.")
             }
-            val cameraId = manager.cameraIdList[0]
+            val cameraId = manager.cameraIdList[1]
 
             // Choose the sizes for camera preview and video recording
             val characteristics = manager.getCameraCharacteristics(cameraId)
@@ -251,10 +256,12 @@ class CameraSensor : AwareSensor() {
         try {
             cameraOpenCloseLock.acquire()
             closeCaptureSession()
-            cameraDevice?.close()
-            cameraDevice = null
+
             mediaRecorder?.release()
             mediaRecorder = null
+
+            cameraDevice?.close()
+            cameraDevice = null
         } catch (e: InterruptedException) {
             throw RuntimeException("Interrupted while trying to lock camera closing.", e)
         } finally {
@@ -285,8 +292,8 @@ class CameraSensor : AwareSensor() {
             setVideoSource(MediaRecorder.VideoSource.SURFACE)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setOutputFile(nextVideoAbsolutePath)
-            setVideoEncodingBitRate(10000000)
-            setVideoFrameRate(30)
+            setVideoEncodingBitRate(CONFIG.bitrate)
+            setVideoFrameRate(CONFIG.frameRate)
             setVideoSize(videoSize.width, videoSize.height)
             setVideoEncoder(MediaRecorder.VideoEncoder.H264)
 //            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -300,11 +307,19 @@ class CameraSensor : AwareSensor() {
     }
 
     private fun getVideoFilePath(path: String): String {
-        return path + "/${System.currentTimeMillis()}.mp4"
+        return if (path.isEmpty()) applicationContext.getExternalFilesDir(null).absolutePath + "/${System.currentTimeMillis()}.mp4"
+        else "$path/${System.currentTimeMillis()}.mp4"
     }
 
     private fun startRecordingVideo(length: Long) {
-        if (cameraDevice == null) return
+        if (cameraDevice == null) {
+            isWaitingForCamera = true
+            openCamera()
+        }
+
+        if (isRecordingVideo) {
+            Log.w(TAG, "Video recording session is already in progress.")
+        }
 
         try {
             closeCaptureSession()
@@ -372,7 +387,6 @@ class CameraSensor : AwareSensor() {
     }
 
     private fun stopRecordingVideo() {
-        isRecordingVideo = false
         mediaRecorder?.apply {
             stop()
             reset()
@@ -383,6 +397,8 @@ class CameraSensor : AwareSensor() {
         }
 
         nextVideoAbsolutePath = null
+        closeCamera()
+        isRecordingVideo = false
     }
 
     /**

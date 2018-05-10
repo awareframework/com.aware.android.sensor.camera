@@ -33,7 +33,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.awareframework:com.aware.android.core:master-SNAPSHOT'
+    api 'com.github.awareframework:com.aware.android.core:master-SNAPSHOT'
 
     // KOTLIN
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
@@ -70,3 +70,4 @@ artifacts {
     archives sourcesJar
     archives javadocJar
 }
+
