@@ -222,7 +222,8 @@ class CameraSensor : AwareSensor() {
             if (!cameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
                 throw RuntimeException("Time out waiting to lock camera opening.")
             }
-            val cameraId = manager.cameraIdList[1]
+
+            val cameraId = chooseCameraId(CONFIG.facing, manager)
 
             // Choose the sizes for camera preview and video recording
             val characteristics = manager.getCameraCharacteristics(cameraId)
@@ -247,6 +248,17 @@ class CameraSensor : AwareSensor() {
         } catch (e: InterruptedException) {
             throw RuntimeException("Interrupted while trying to lock camera opening.")
         }
+    }
+
+    private fun chooseCameraId(face: Camera.CameraFace, cameraManager: CameraManager): String {
+        val lensCharacteristics = when (face) {
+            Camera.CameraFace.FRONT -> CameraCharacteristics.LENS_FACING_FRONT.toString()
+            Camera.CameraFace.BACK -> CameraCharacteristics.LENS_FACING_BACK.toString()
+        }
+
+        return cameraManager.cameraIdList.find {
+            it == lensCharacteristics
+        } ?: cameraManager.cameraIdList[0]
     }
 
     /**
