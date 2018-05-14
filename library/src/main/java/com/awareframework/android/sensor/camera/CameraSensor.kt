@@ -14,6 +14,7 @@ import android.util.Log
 import android.util.Size
 import android.util.SparseIntArray
 import android.view.Surface
+import android.view.WindowManager
 import com.awareframework.android.core.AwareSensor
 import com.awareframework.android.core.db.Engine
 import java.io.IOException
@@ -291,16 +292,23 @@ class CameraSensor : AwareSensor() {
             nextVideoAbsolutePath = getVideoFilePath(CONFIG.contentPath)
         }
 
-        val rotation = applicationContext.resources.configuration.orientation
-        when (sensorOrientation) {
+        val windowManager = applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val rotation = windowManager.defaultDisplay.rotation
+        val hint = when (sensorOrientation) {
             SENSOR_ORIENTATION_DEFAULT_DEGREES ->
-                mediaRecorder?.setOrientationHint(DEFAULT_ORIENTATIONS.get(rotation))
+                DEFAULT_ORIENTATIONS.get(rotation)
             SENSOR_ORIENTATION_INVERSE_DEGREES ->
-                mediaRecorder?.setOrientationHint(INVERSE_ORIENTATIONS.get(rotation))
+                INVERSE_ORIENTATIONS.get(rotation)
+            else -> DEFAULT_ORIENTATIONS.get(rotation)
         }
+        mediaRecorder?.setOrientationHint(hint)
+
+        Log.d(TAG, "Rotation: $rotation\n" +
+                "SensorOrientation: $sensorOrientation\n" +
+                "Hint: $hint")
 
         mediaRecorder?.apply {
-            //            setAudioSource(MediaRecorder.AudioSource.MIC)
+            // setAudioSource(MediaRecorder.AudioSource.MIC)
             setVideoSource(MediaRecorder.VideoSource.SURFACE)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setOutputFile(nextVideoAbsolutePath)
@@ -308,7 +316,7 @@ class CameraSensor : AwareSensor() {
             setVideoFrameRate(CONFIG.frameRate)
             setVideoSize(videoSize.width, videoSize.height)
             setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-//            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            // setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             prepare()
         }
     }
