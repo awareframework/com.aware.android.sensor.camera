@@ -233,7 +233,7 @@ class CameraSensor : AwareSensor() {
             saveCameraCharacteristics(characteristics)
 
             sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
-            videoSize = chooseVideoSize(map.getOutputSizes(MediaRecorder::class.java))
+            videoSize = chooseVideoSize(map.getOutputSizes(MediaRecorder::class.java), CONFIG.preferredWidth, CONFIG.preferredHeight)
 
             mediaRecorder = MediaRecorder()
             manager.openCamera(cameraId, stateCallback, null)
@@ -411,6 +411,55 @@ class CameraSensor : AwareSensor() {
         nextVideoAbsolutePath = null
         closeCamera()
         isRecordingVideo = false
+    }
+
+    /**
+     * Iterate over supported camera video sizes to see which one best fits the
+     * dimensions of the given view while maintaining the aspect ratio. If none can,
+     * be lenient with the aspect ratio.
+     *
+     * @param choices Supported camera video sizes.
+     * @param previewSizes Supported camera preview sizes.
+     * @param w     The width of the view.
+     * @param h     The height of the view.
+     * @return Best match camera video size to fit in the view.
+     */
+    fun chooseVideoSize(choices: Array<Size>, w: Int, h: Int): Size {
+        // Use a very small tolerance because we want an exact match.
+        val ASPECT_TOLERANCE = 0.1
+        val targetRatio = w.toDouble() / h
+
+        // Start with max value and refine as we iterate over available video sizes. This is the
+        // minimum difference between view and camera height.
+        var minDiff = Int.MAX_VALUE
+
+        var optimalSize: Size? = null
+
+        // Try to find a video size that matches aspect ratio and the target view size.
+        // Iterate over all available sizes and pick the largest size that can fit in the view and
+        // still maintain the aspect ratio.
+        for (size in choices) {
+            val ratio = size.width.toDouble() / size.height
+            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE)
+                continue
+            if (Math.abs(size.height - h) < minDiff) {
+                optimalSize = size
+                minDiff = Math.abs(size.height - h)
+            }
+        }
+
+        // Cannot find video size that matches the aspect ratio, ignore the requirement
+        if (optimalSize == null) {
+            minDiff = Int.MAX_VALUE
+            for (size in choices) {
+                if (Math.abs(size.height - h) < minDiff) {
+                    optimalSize = size
+                    minDiff = Math.abs(size.height - h)
+                }
+            }
+        }
+
+        return optimalSize ?: choices[0]
     }
 
     /**

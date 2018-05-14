@@ -47,11 +47,13 @@ class Camera private constructor(private val context: Context) : ISensorControll
     data class CameraConfig(
             var bitrate: Int = 10000000,
             var frameRate: Int = 30,
-            var facing: CameraFace = CameraFace.FRONT,
+            var facing: CameraFace = CameraFace.BACK,
             var contentPath: String = "",
             var retryCount: Int = 3,
             var retryDelay: Float = 1f, // in seconds
-            var videoLength: Float = 10f // 10 seconds
+            var videoLength: Float = 10f, // 10 seconds
+            var preferredWidth: Int = 1920,
+            var preferredHeight: Int = 1080
     ) : SensorConfig(dbPath = "aware_camera") {
         fun videoLengthInMillis() = videoLength.toLong() * 1000
     }
@@ -84,6 +86,14 @@ class Camera private constructor(private val context: Context) : ISensorControll
 
         fun setVideoLength(length: Float) = apply {
             config.videoLength = length
+        }
+
+        fun setPreferredWidth(width: Int) = apply {
+            config.preferredWidth = width
+        }
+
+        fun setPreferredHeight(height: Int) = apply {
+            config.preferredHeight = height
         }
 
         fun build(): Camera = Camera(context)
