@@ -2,11 +2,15 @@ package com.awareframework.android.sensor.camera
 
 import android.content.Context
 import android.content.Intent
+import com.awareframework.android.core.db.Engine
+import com.awareframework.android.core.model.AwareObject
 import com.awareframework.android.core.model.ISensorController
 import com.awareframework.android.core.model.SensorConfig
+import com.awareframework.android.sensor.camera.model.VideoData
+import com.google.gson.Gson
 
 /**
- * Class decription
+ * Camera controller class
  *
  * @author  sercant
  * @date 20/04/2018
@@ -19,6 +23,8 @@ class Camera private constructor(private val context: Context) : ISensorControll
 
     companion object {
         private var config: CameraConfig = CameraSensor.CONFIG
+
+        const val ACTION_VIDEO_RECORDED = "com.awareframework.android.sensor.camera.video_recorded"
     }
 
     override fun disable() {
@@ -56,9 +62,66 @@ class Camera private constructor(private val context: Context) : ISensorControll
             var preferredHeight: Int = 1080
     ) : SensorConfig(dbPath = "aware_camera") {
         fun videoLengthInMillis() = videoLength.toLong() * 1000
+
+        companion object {
+            fun fromJson(json: String): CameraConfig = Gson().fromJson(json, CameraConfig::class.java)
+        }
+
+        fun toJson(): String = Gson().toJson(this)
+
+        fun replaceWith(other: CameraConfig) {
+            bitrate = other.bitrate
+            frameRate = other.frameRate
+            facing = other.facing
+            contentPath = other.contentPath
+            retryCount = other.retryCount
+            retryDelay = other.retryDelay
+            videoLength = other.videoLength
+            preferredWidth = other.preferredWidth
+            preferredHeight = other.preferredHeight
+            enabled = other.enabled
+            debug = other.debug
+            label = other.label
+            deviceId = other.deviceId
+            dbEncryptionKey = other.dbEncryptionKey
+            dbType = other.dbType
+            dbPath = other.dbPath
+            dbHost = other.dbHost
+        }
     }
 
     class Builder(private val context: Context) {
+
+        /**
+         * @param label collected data will be labeled accordingly. (default = "")
+         */
+        fun setLabel(label: String) = apply { config.label = label }
+
+        /**
+         * @param debug enable/disable logging to Logcat. (default = false)
+         */
+        fun setDebug(debug: Boolean) = apply { config.debug = debug }
+
+        /**
+         * @param key encryption key for the database. (default = no encryption)
+         */
+        fun setDatabaseEncryptionKey(key: String) = apply { config.dbEncryptionKey = key }
+
+        /**
+         * @param host host for syncing the database. (default = null)
+         */
+        fun setDatabaseHost(host: String) = apply { config.dbHost = host }
+
+        /**
+         * @param type which db engine to use for saving data. (default = NONE)
+         */
+        fun setDatabaseType(type: Engine.DatabaseType) = apply { config.dbType = type }
+
+        /**
+         * @param path path of the database.
+         */
+        fun setDatabasePath(path: String) = apply { config.dbPath = path }
+
 
         fun setBitrate(rate: Int) = apply {
             config.bitrate = rate
@@ -97,6 +160,32 @@ class Camera private constructor(private val context: Context) : ISensorControll
         }
 
         fun build(): Camera = Camera(context)
+
+        fun build(other: CameraConfig): Camera {
+            config.replaceWith(other)
+            return Camera(context)
+        }
     }
 
+    fun getVideoData(): List<VideoData> {
+        val dbEngine = Engine.Builder(context)
+                .setEncryptionKey(CameraSensor.CONFIG.dbEncryptionKey)
+                .setHost(CameraSensor.CONFIG.dbHost)
+                .setPath(CameraSensor.CONFIG.dbPath)
+                .setType(CameraSensor.CONFIG.dbType)
+                .build()
+
+        val data = dbEngine?.getAll(VideoData.TABLE_NAME)
+
+        dbEngine?.close()
+
+        val list = ArrayList<VideoData>()
+        data?.forEach {
+            it.withData<VideoData> {
+                list.add(it)
+            }
+        }
+
+        return list
+    }
 }

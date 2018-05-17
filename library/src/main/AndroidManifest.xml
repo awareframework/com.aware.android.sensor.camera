@@ -2,9 +2,10 @@
     package="com.awareframework.android.sensor.camera">
 
     <uses-permission android:name="android.permission.CAMERA"/>
-    <!--<uses-permission android:name="android.permission.RECORD_AUDIO"/>-->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-    <!--<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>-->
+    <!--<uses-permission android:name="android.permission.RECORD_AUDIO"/>-->
+
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <application>
         <service android:name=".CameraSensor"/>

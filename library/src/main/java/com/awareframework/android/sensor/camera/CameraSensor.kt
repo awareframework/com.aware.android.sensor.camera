@@ -17,12 +17,13 @@ import android.view.Surface
 import android.view.WindowManager
 import com.awareframework.android.core.AwareSensor
 import com.awareframework.android.core.db.Engine
+import com.awareframework.android.sensor.camera.model.VideoData
 import java.io.IOException
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 
 /**
- * Class decription
+ * Camera service
  *
  * @author  sercant
  * @date 21/04/2018
@@ -158,7 +159,7 @@ class CameraSensor : AwareSensor() {
         if (cameraDevice == null) {
             isWaitingForCamera = true
             openCamera()
-        } else {
+        } else if (!isRecordingVideo) {
             // TODO (sercant): if there is delay add here
             startRecordingVideo(CONFIG.videoLengthInMillis())
         }
@@ -292,20 +293,15 @@ class CameraSensor : AwareSensor() {
             nextVideoAbsolutePath = getVideoFilePath(CONFIG.contentPath)
         }
 
+
         val windowManager = applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val rotation = windowManager.defaultDisplay.rotation
-        val hint = when (sensorOrientation) {
+        when (sensorOrientation) {
             SENSOR_ORIENTATION_DEFAULT_DEGREES ->
-                DEFAULT_ORIENTATIONS.get(rotation)
+                mediaRecorder?.setOrientationHint(DEFAULT_ORIENTATIONS.get(rotation))
             SENSOR_ORIENTATION_INVERSE_DEGREES ->
-                INVERSE_ORIENTATIONS.get(rotation)
-            else -> DEFAULT_ORIENTATIONS.get(rotation)
+                mediaRecorder?.setOrientationHint(INVERSE_ORIENTATIONS.get(rotation))
         }
-        mediaRecorder?.setOrientationHint(hint)
-
-        Log.d(TAG, "Rotation: $rotation\n" +
-                "SensorOrientation: $sensorOrientation\n" +
-                "Hint: $hint")
 
         mediaRecorder?.apply {
             // setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -339,6 +335,7 @@ class CameraSensor : AwareSensor() {
 
         if (isRecordingVideo) {
             Log.w(TAG, "Video recording session is already in progress.")
+            return
         }
 
         try {
@@ -412,9 +409,20 @@ class CameraSensor : AwareSensor() {
             reset()
         }
 
-        if (nextVideoAbsolutePath != null) {
-            Log.e(TAG, "Video saved: $nextVideoAbsolutePath")
+        nextVideoAbsolutePath?.let {
+            Log.e(TAG, "Video saved: $it")
+
+            dbEngine?.save(VideoData(
+                    filePath = it,
+                    length = CONFIG.videoLength
+            ).apply {
+                label = CONFIG.label
+                timestamp = System.currentTimeMillis()
+                deviceId = CONFIG.deviceId
+            }, VideoData.TABLE_NAME)
         }
+
+        applicationContext.sendBroadcast(Intent(Camera.ACTION_VIDEO_RECORDED))
 
         nextVideoAbsolutePath = null
         closeCamera()
