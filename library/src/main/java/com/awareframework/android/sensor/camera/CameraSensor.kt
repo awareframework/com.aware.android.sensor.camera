@@ -53,6 +53,14 @@ class CameraSensor : AwareSensor() {
         internal var instance: CameraSensor? = null
     }
 
+    enum class ServiceState {
+        WAITING_FOR_CAMERA,
+        RECORDING_VIDEO,
+        IDLE
+    }
+
+    private var state: ServiceState = ServiceState.IDLE
+
     /**
      * A reference to the opened [android.hardware.camera2.CameraDevice].
      */
@@ -69,10 +77,10 @@ class CameraSensor : AwareSensor() {
      */
     private lateinit var videoSize: Size
 
-    /**
-     * Whether the app is recording video now
-     */
-    private var isRecordingVideo = false
+//    /**
+//     * Whether the app is recording video now
+//     */
+//    private var isRecordingVideo = false
 
     /**
      * An additional thread for running tasks that shouldn't block the UI.
@@ -107,7 +115,7 @@ class CameraSensor : AwareSensor() {
         override fun onOpened(cameraDevice: CameraDevice) {
             cameraOpenCloseLock.release()
             this@CameraSensor.cameraDevice = cameraDevice
-            if (isWaitingForCamera) {
+            if (state == ServiceState.WAITING_FOR_CAMERA) {
                 startRecordingVideo(CONFIG.videoLengthInMillis())
             }
         }
@@ -134,7 +142,7 @@ class CameraSensor : AwareSensor() {
 
     private var mediaRecorder: MediaRecorder? = null
 
-    private var isWaitingForCamera: Boolean = false
+//    private var isWaitingForCamera: Boolean = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startBackgroundThread()
@@ -156,12 +164,11 @@ class CameraSensor : AwareSensor() {
                 .setType(CONFIG.dbType)
                 .build()
 
-        if (cameraDevice == null) {
-            isWaitingForCamera = true
-            openCamera()
-        } else if (!isRecordingVideo) {
-            // TODO (sercant): if there is delay add here
-            startRecordingVideo(CONFIG.videoLengthInMillis())
+        when (state) {
+            ServiceState.IDLE -> openCamera()
+            ServiceState.RECORDING_VIDEO, ServiceState.WAITING_FOR_CAMERA -> {
+                // don't do anything
+            }
         }
 
         instance = this
@@ -172,9 +179,16 @@ class CameraSensor : AwareSensor() {
     override fun onDestroy() {
         super.onDestroy()
 
-        closeCamera()
-        stopBackgroundThread()
+        if (state == ServiceState.RECORDING_VIDEO)
+            stopRecordingVideo()
 
+        if (cameraDevice != null)
+            closeCamera()
+
+        if (backgroundThread != null)
+            stopBackgroundThread()
+
+        state = ServiceState.IDLE
         instance = null
     }
 
@@ -218,6 +232,8 @@ class CameraSensor : AwareSensor() {
             stopSelf()
             return
         }
+
+        state = ServiceState.WAITING_FOR_CAMERA
 
         val manager = applicationContext.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         try {
@@ -293,7 +309,6 @@ class CameraSensor : AwareSensor() {
             nextVideoAbsolutePath = getVideoFilePath(CONFIG.contentPath)
         }
 
-
         val windowManager = applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val rotation = windowManager.defaultDisplay.rotation
         when (sensorOrientation) {
@@ -323,17 +338,17 @@ class CameraSensor : AwareSensor() {
     }
 
     private fun getVideoFilePath(path: String): String {
-        return if (path.isEmpty()) applicationContext.getExternalFilesDir(null).absolutePath + "/${System.currentTimeMillis()}.mp4"
+        return if (path.isEmpty()) filesDir.absolutePath + "/${System.currentTimeMillis()}.mp4"
         else "$path/${System.currentTimeMillis()}.mp4"
     }
 
     private fun startRecordingVideo(length: Long) {
-        if (cameraDevice == null) {
-            isWaitingForCamera = true
+        if (cameraDevice == null && state == ServiceState.IDLE) {
             openCamera()
+            return
         }
 
-        if (isRecordingVideo) {
+        if (state == ServiceState.RECORDING_VIDEO) {
             Log.w(TAG, "Video recording session is already in progress.")
             return
         }
@@ -360,11 +375,11 @@ class CameraSensor : AwareSensor() {
                             captureSession = cameraCaptureSession
                             updateCapture()
 //                            applicationContext.runOnUiThread {
-                            isRecordingVideo = true
+                            state = ServiceState.RECORDING_VIDEO
                             mediaRecorder?.start()
 
                             Handler().postDelayed({
-                                stopRecordingVideo()
+                                stopSelf()
                             }, length)
 //                            }
                         }
@@ -376,8 +391,10 @@ class CameraSensor : AwareSensor() {
                     }, backgroundHandler)
         } catch (e: CameraAccessException) {
             Log.e(TAG, e.toString())
+            stopSelf()
         } catch (e: IOException) {
             Log.e(TAG, e.toString())
+            stopSelf()
         }
     }
 
@@ -394,6 +411,7 @@ class CameraSensor : AwareSensor() {
                     null, backgroundHandler)
         } catch (e: CameraAccessException) {
             Log.e(TAG, e.toString())
+            stopSelf()
         }
 
     }
@@ -404,13 +422,25 @@ class CameraSensor : AwareSensor() {
     }
 
     private fun stopRecordingVideo() {
+        try {
+            captureSession?.let {
+                it.stopRepeating()
+                it.abortCaptures()
+            }
+        } catch (e: CameraAccessException) {
+            e.printStackTrace()
+        }
+
         mediaRecorder?.apply {
             stop()
             reset()
         }
 
+        stopBackgroundThread()
+        closeCamera()
+
         nextVideoAbsolutePath?.let {
-            Log.e(TAG, "Video saved: $it")
+            Log.d(TAG, "Video saved: $it")
 
             dbEngine?.save(VideoData(
                     filePath = it,
@@ -425,8 +455,7 @@ class CameraSensor : AwareSensor() {
         applicationContext.sendBroadcast(Intent(Camera.ACTION_VIDEO_RECORDED))
 
         nextVideoAbsolutePath = null
-        closeCamera()
-        isRecordingVideo = false
+        state = ServiceState.IDLE
     }
 
     /**
