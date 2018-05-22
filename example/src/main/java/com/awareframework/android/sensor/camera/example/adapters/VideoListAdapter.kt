@@ -1,10 +1,16 @@
 package com.awareframework.android.sensor.camera.example.adapters
 
+import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.support.v7.widget.CardView
 import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
+import android.widget.RelativeLayout
+import android.widget.VideoView
 import com.awareframework.android.sensor.camera.example.R
 import com.awareframework.android.sensor.camera.model.VideoData
 import kotlinx.android.synthetic.main.video_preview.view.*
@@ -38,8 +44,7 @@ class VideoListAdapter(private val data: List<VideoData>) :
             thumbnail.apply {
                 setVideoPath(videoData.filePath)
                 setOnPreparedListener {
-                    it.isLooping = true
-                    thumbnail.start()
+                    seekTo(it.duration / 2)
 
                     // keep aspect ratio
                     layoutParams.height = it.videoWidth / it.videoHeight * layoutParams.width
@@ -51,6 +56,11 @@ class VideoListAdapter(private val data: List<VideoData>) :
 
             setOnClickListener {
                 onPreviewClicked(it, videoData)
+            }
+
+            setOnLongClickListener {
+                onPreviewLongClicked(it, videoData)
+                return@setOnLongClickListener true
             }
         }
     }
@@ -64,6 +74,27 @@ class VideoListAdapter(private val data: List<VideoData>) :
                 selectionList.add(data.filePath)
         } else {
             selectionList.remove(data.filePath)
+        }
+    }
+
+    fun onPreviewLongClicked(view: View?, data: VideoData) {
+        view ?: return
+        val context = view.context
+
+        val videoView = VideoView(context)
+
+        Dialog(context).apply {
+            requestWindowFeature(Window.FEATURE_NO_TITLE)
+            window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            addContentView(videoView, RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }.show()
+
+        videoView.apply {
+            setVideoPath(data.filePath)
+            setOnPreparedListener {
+                it.isLooping = true
+                it.start()
+            }
         }
     }
 
