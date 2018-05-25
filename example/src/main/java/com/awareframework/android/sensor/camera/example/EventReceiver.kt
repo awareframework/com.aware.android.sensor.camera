@@ -28,10 +28,21 @@ class EventReceiver : BroadcastReceiver() {
                             dbType = Engine.DatabaseType.ROOM
                             contentPath = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES).absolutePath
                         }.toJson())
-                val camera = Camera.Builder(context)
-                        .build(Camera.CameraConfig.fromJson(json))
+//                val frontCamera = Camera.Builder(context)
+//                        .build(Camera.CameraConfig.fromJson(json).apply {
+//                            facing = Camera.CameraFace.FRONT
+//                        })
 
-                camera.start()
+                val backCameraConfig = Camera.CameraConfig.fromJson(json).apply {
+                    facing = Camera.CameraFace.BACK
+                }
+
+                val backCamera = Camera.Builder(context)
+                        .build(backCameraConfig)
+
+
+//                frontCamera.start()
+                backCamera.start()
             }
         }
     }

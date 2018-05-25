@@ -3,7 +3,6 @@ package com.awareframework.android.sensor.camera
 import android.content.Context
 import android.content.Intent
 import com.awareframework.android.core.db.Engine
-import com.awareframework.android.core.model.AwareObject
 import com.awareframework.android.core.model.ISensorController
 import com.awareframework.android.core.model.SensorConfig
 import com.awareframework.android.sensor.camera.model.VideoData
@@ -22,10 +21,11 @@ class Camera private constructor(private val context: Context) : ISensorControll
     }
 
     companion object {
-        private var config: CameraConfig = CameraSensor.CONFIG
-
         const val ACTION_VIDEO_RECORDED = "com.awareframework.android.sensor.camera.video_recorded"
     }
+
+    private var config: CameraConfig = CameraConfig()
+
 
     override fun disable() {
         config.enabled = false
@@ -38,16 +38,34 @@ class Camera private constructor(private val context: Context) : ISensorControll
     override fun isEnabled(): Boolean = config.enabled
 
     override fun start() {
-        context.startService(Intent(context, CameraSensor::class.java))
+        when (config.facing) {
+            CameraFace.BACK -> {
+                BackCameraSensor.CONFIG.replaceWith(config)
+                context.startService(Intent(context, BackCameraSensor::class.java))
+            }
+            CameraFace.FRONT -> {
+                FrontCameraSensor.CONFIG.replaceWith(config)
+                context.startService(Intent(context, FrontCameraSensor::class.java))
+            }
+        }
     }
 
     override fun stop() {
-        context.stopService(Intent(context, CameraSensor::class.java))
+        when (config.facing) {
+            CameraFace.BACK -> {
+                context.stopService(Intent(context, BackCameraSensor::class.java))
+
+            }
+            CameraFace.FRONT -> {
+                context.stopService(Intent(context, FrontCameraSensor::class.java))
+            }
+        }
     }
 
     override fun sync(force: Boolean) {
         // TODO (sercant): fix here
-        CameraSensor.instance?.onSync(null)
+        FrontCameraSensor.instance?.onSync(null)
+        BackCameraSensor.instance?.onSync(null)
     }
 
     data class CameraConfig(
@@ -91,6 +109,7 @@ class Camera private constructor(private val context: Context) : ISensorControll
     }
 
     class Builder(private val context: Context) {
+        private var config: CameraConfig = CameraConfig()
 
         /**
          * @param label collected data will be labeled accordingly. (default = "")
@@ -159,20 +178,21 @@ class Camera private constructor(private val context: Context) : ISensorControll
             config.preferredHeight = height
         }
 
-        fun build(): Camera = Camera(context)
+        fun build(): Camera = Camera(context).apply {
+            config.replaceWith(this@Builder.config)
+        }
 
-        fun build(other: CameraConfig): Camera {
+        fun build(other: CameraConfig): Camera = Camera(context).apply {
             config.replaceWith(other)
-            return Camera(context)
         }
     }
 
     fun getVideoData(): List<VideoData> {
         val dbEngine = Engine.Builder(context)
-                .setEncryptionKey(CameraSensor.CONFIG.dbEncryptionKey)
-                .setHost(CameraSensor.CONFIG.dbHost)
-                .setPath(CameraSensor.CONFIG.dbPath)
-                .setType(CameraSensor.CONFIG.dbType)
+                .setEncryptionKey(config.dbEncryptionKey)
+                .setHost(config.dbHost)
+                .setPath(config.dbPath)
+                .setType(config.dbType)
                 .build()
 
         val data = dbEngine?.getAll(VideoData.TABLE_NAME)

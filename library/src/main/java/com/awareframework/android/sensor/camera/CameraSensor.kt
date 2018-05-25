@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit
  * @author  sercant
  * @date 21/04/2018
  */
-class CameraSensor : AwareSensor() {
+abstract class CameraSensor : AwareSensor() {
 
     companion object {
         const val TAG = "AwareCamera"
@@ -49,8 +49,6 @@ class CameraSensor : AwareSensor() {
             append(Surface.ROTATION_180, 90)
             append(Surface.ROTATION_270, 0)
         }
-
-        internal var instance: CameraSensor? = null
     }
 
     enum class ServiceState {
@@ -59,64 +57,66 @@ class CameraSensor : AwareSensor() {
         IDLE
     }
 
-    private var state: ServiceState = ServiceState.IDLE
+    protected var runningConfig: Camera.CameraConfig = CONFIG
+
+    protected var state: ServiceState = ServiceState.IDLE
 
     /**
      * A reference to the opened [android.hardware.camera2.CameraDevice].
      */
-    private var cameraDevice: CameraDevice? = null
+    protected var cameraDevice: CameraDevice? = null
 
     /**
      * A reference to the current [android.hardware.camera2.CameraCaptureSession] for
      * preview.
      */
-    private var captureSession: CameraCaptureSession? = null
+    protected var captureSession: CameraCaptureSession? = null
 
     /**
      * The [android.util.Size] of video recording.
      */
-    private lateinit var videoSize: Size
+    protected lateinit var videoSize: Size
 
 //    /**
 //     * Whether the app is recording video now
 //     */
-//    private var isRecordingVideo = false
+//    protected var isRecordingVideo = false
 
     /**
      * An additional thread for running tasks that shouldn't block the UI.
      */
-    private var backgroundThread: HandlerThread? = null
+    protected var backgroundThread: HandlerThread? = null
 
     /**
      * A [Handler] for running tasks in the background.
      */
-    private var backgroundHandler: Handler? = null
+    protected var backgroundHandler: Handler? = null
 
     /**
      * A [Semaphore] to prevent the app from exiting before closing the camera.
      */
-    private val cameraOpenCloseLock = Semaphore(1)
+    protected val cameraOpenCloseLock = Semaphore(1)
 
     /**
      * [CaptureRequest.Builder] for the camera preview
      */
-    private lateinit var captureRequestBuilder: CaptureRequest.Builder
+    protected lateinit var captureRequestBuilder: CaptureRequest.Builder
 
     /**
      * Orientation of the camera sensor
      */
-    private var sensorOrientation = 0
+    protected var sensorOrientation = 0
 
     /**
      * [CameraDevice.StateCallback] is called when [CameraDevice] changes its status.
      */
-    private val stateCallback = object : CameraDevice.StateCallback() {
+    protected val stateCallback = object : CameraDevice.StateCallback() {
 
         override fun onOpened(cameraDevice: CameraDevice) {
             cameraOpenCloseLock.release()
             this@CameraSensor.cameraDevice = cameraDevice
             if (state == ServiceState.WAITING_FOR_CAMERA) {
-                startRecordingVideo(CONFIG.videoLengthInMillis())
+                startRecordingVideo(runningConfig.videoLengthInMillis())
             }
         }
 
@@ -138,11 +138,11 @@ class CameraSensor : AwareSensor() {
     /**
      * Output file for video
      */
-    private var nextVideoAbsolutePath: String? = null
+    protected var nextVideoAbsolutePath: String? = null
 
-    private var mediaRecorder: MediaRecorder? = null
+    protected var mediaRecorder: MediaRecorder? = null
 
-//    private var isWaitingForCamera: Boolean = false
+//    protected var isWaitingForCamera: Boolean = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startBackgroundThread()
@@ -158,10 +158,10 @@ class CameraSensor : AwareSensor() {
 //        }
 
         dbEngine = Engine.Builder(applicationContext)
-                .setEncryptionKey(CONFIG.dbEncryptionKey)
-                .setHost(CONFIG.dbHost)
-                .setPath(CONFIG.dbPath)
-                .setType(CONFIG.dbType)
+                .setEncryptionKey(runningConfig.dbEncryptionKey)
+                .setHost(runningConfig.dbHost)
+                .setPath(runningConfig.dbPath)
+                .setType(runningConfig.dbType)
                 .build()
 
         when (state) {
@@ -170,8 +170,6 @@ class CameraSensor : AwareSensor() {
                 // don't do anything
             }
         }
-
-        instance = this
 
         return START_STICKY
     }
@@ -189,13 +187,12 @@ class CameraSensor : AwareSensor() {
             stopBackgroundThread()
 
         state = ServiceState.IDLE
-        instance = null
     }
 
     /**
      * Starts a background thread and its [Handler].
      */
-    private fun startBackgroundThread() {
+    protected fun startBackgroundThread() {
         backgroundThread = HandlerThread("CameraBackground")
         backgroundThread?.start()
         backgroundHandler = Handler(backgroundThread?.looper)
@@ -204,7 +201,7 @@ class CameraSensor : AwareSensor() {
     /**
      * Stops the background thread and its [Handler].
      */
-    private fun stopBackgroundThread() {
+    protected fun stopBackgroundThread() {
         backgroundThread?.quitSafely()
         try {
             backgroundThread?.join()
@@ -215,7 +212,7 @@ class CameraSensor : AwareSensor() {
         }
     }
 
-    private fun hasPermissionsGranted(permissions: Array<String>) =
+    protected fun hasPermissionsGranted(permissions: Array<String>) =
             permissions.none {
                 applicationContext.checkCallingOrSelfPermission(it) != PackageManager.PERMISSION_GRANTED
             }
@@ -226,7 +223,7 @@ class CameraSensor : AwareSensor() {
      * Lint suppression - permission is checked in [hasPermissionsGranted]
      */
     @SuppressLint("MissingPermission")
-    private fun openCamera() {
+    protected fun openCamera() {
         if (!hasPermissionsGranted(VIDEO_PERMISSIONS)) {
             Log.w(TAG, "Missing permissions! Aborting.")
             stopSelf()
@@ -241,7 +238,7 @@ class CameraSensor : AwareSensor() {
                 throw RuntimeException("Time out waiting to lock camera opening.")
             }
 
-            val cameraId = chooseCameraId(CONFIG.facing, manager)
+            val cameraId = chooseCameraId(runningConfig.facing, manager)
 
             // Choose the sizes for camera preview and video recording
             val characteristics = manager.getCameraCharacteristics(cameraId)
@@ -251,7 +248,7 @@ class CameraSensor : AwareSensor() {
             saveCameraCharacteristics(characteristics)
 
             sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
-            videoSize = chooseVideoSize(map.getOutputSizes(MediaRecorder::class.java), CONFIG.preferredWidth, CONFIG.preferredHeight)
+            videoSize = chooseVideoSize(map.getOutputSizes(MediaRecorder::class.java), runningConfig.preferredWidth, runningConfig.preferredHeight)
 
             mediaRecorder = MediaRecorder()
             manager.openCamera(cameraId, stateCallback, null)
@@ -268,7 +265,7 @@ class CameraSensor : AwareSensor() {
         }
     }
 
-    private fun chooseCameraId(face: Camera.CameraFace, cameraManager: CameraManager): String {
+    protected fun chooseCameraId(face: Camera.CameraFace, cameraManager: CameraManager): String {
         val lensCharacteristics = when (face) {
             Camera.CameraFace.FRONT -> CameraCharacteristics.LENS_FACING_FRONT.toString()
             Camera.CameraFace.BACK -> CameraCharacteristics.LENS_FACING_BACK.toString()
@@ -282,7 +279,7 @@ class CameraSensor : AwareSensor() {
     /**
      * Close the [CameraDevice].
      */
-    private fun closeCamera() {
+    protected fun closeCamera() {
         try {
             cameraOpenCloseLock.acquire()
             closeCaptureSession()
@@ -299,14 +296,14 @@ class CameraSensor : AwareSensor() {
         }
     }
 
-    private fun setUpCaptureRequestBuilder(builder: CaptureRequest.Builder?) {
+    protected fun setUpCaptureRequestBuilder(builder: CaptureRequest.Builder?) {
         builder?.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
     }
 
     @Throws(IOException::class)
-    private fun setUpMediaRecorder() {
+    protected fun setUpMediaRecorder() {
         if (nextVideoAbsolutePath.isNullOrEmpty()) {
-            nextVideoAbsolutePath = getVideoFilePath(CONFIG.contentPath)
+            nextVideoAbsolutePath = getVideoFilePath(runningConfig.contentPath)
         }
 
         val windowManager = applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -323,8 +320,8 @@ class CameraSensor : AwareSensor() {
             setVideoSource(MediaRecorder.VideoSource.SURFACE)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setOutputFile(nextVideoAbsolutePath)
-            setVideoEncodingBitRate(CONFIG.bitrate)
-            setVideoFrameRate(CONFIG.frameRate)
+            setVideoEncodingBitRate(runningConfig.bitrate)
+            setVideoFrameRate(runningConfig.frameRate)
             setVideoSize(videoSize.width, videoSize.height)
             setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             // setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -332,17 +329,17 @@ class CameraSensor : AwareSensor() {
         }
     }
 
-    private fun saveCameraCharacteristics(characteristics: CameraCharacteristics) {
+    protected fun saveCameraCharacteristics(characteristics: CameraCharacteristics) {
         // TODO (sercant): save camera characteristics
 //        dbEngine?.save(characteristics.get(CameraCharacteristics.))
     }
 
-    private fun getVideoFilePath(path: String): String {
+    protected fun getVideoFilePath(path: String): String {
         return if (path.isEmpty()) filesDir.absolutePath + "/${System.currentTimeMillis()}.mp4"
         else "$path/${System.currentTimeMillis()}.mp4"
     }
 
-    private fun startRecordingVideo(length: Long) {
+    protected fun startRecordingVideo(length: Long) {
         if (cameraDevice == null && state == ServiceState.IDLE) {
             openCamera()
             return
@@ -401,7 +398,7 @@ class CameraSensor : AwareSensor() {
     /**
      * Update the camera preview. [startPreview] needs to be called in advance.
      */
-    private fun updateCapture() {
+    protected fun updateCapture() {
         if (cameraDevice == null) return
 
         try {
@@ -416,18 +413,20 @@ class CameraSensor : AwareSensor() {
 
     }
 
-    private fun closeCaptureSession() {
+    protected fun closeCaptureSession() {
         captureSession?.close()
         captureSession = null
     }
 
-    private fun stopRecordingVideo() {
+    protected fun stopRecordingVideo() {
         try {
             captureSession?.let {
                 it.stopRepeating()
                 it.abortCaptures()
             }
         } catch (e: CameraAccessException) {
+            e.printStackTrace()
+        } catch (e: IllegalStateException) {
             e.printStackTrace()
         }
 
@@ -444,11 +443,11 @@ class CameraSensor : AwareSensor() {
 
             dbEngine?.save(VideoData(
                     filePath = it,
-                    length = CONFIG.videoLength
+                    length = runningConfig.videoLength
             ).apply {
-                label = CONFIG.label
+                label = runningConfig.label
                 timestamp = System.currentTimeMillis()
-                deviceId = CONFIG.deviceId
+                deviceId = runningConfig.deviceId
             }, VideoData.TABLE_NAME)
         }
 
@@ -514,7 +513,7 @@ class CameraSensor : AwareSensor() {
      * @param choices The list of available sizes
      * @return The video size
      */
-    private fun chooseVideoSize(choices: Array<Size>) = choices.firstOrNull {
+    protected fun chooseVideoSize(choices: Array<Size>) = choices.firstOrNull {
         it.width == it.height * 4 / 3 && it.width <= 1080
     } ?: choices[choices.size - 1]
 
