@@ -8,7 +8,6 @@
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <application>
-        <service android:name=".FrontCameraSensor"/>
-        <service android:name=".BackCameraSensor"/>
+        <service android:name=".CameraSensor"/>
     </application>
 </manifest>

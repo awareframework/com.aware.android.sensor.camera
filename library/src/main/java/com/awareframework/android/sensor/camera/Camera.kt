@@ -16,15 +16,10 @@ import com.google.gson.Gson
  */
 class Camera private constructor(private val context: Context) : ISensorController {
 
-    enum class CameraFace {
-        FRONT, BACK
-    }
-
     companion object {
         const val ACTION_VIDEO_RECORDED = "com.awareframework.android.sensor.camera.video_recorded"
+        val config: CameraConfig = CameraSensor.CONFIG
     }
-
-    private var config: CameraConfig = CameraConfig()
 
 
     override fun disable() {
@@ -38,34 +33,15 @@ class Camera private constructor(private val context: Context) : ISensorControll
     override fun isEnabled(): Boolean = config.enabled
 
     override fun start() {
-        when (config.facing) {
-            CameraFace.BACK -> {
-                BackCameraSensor.CONFIG.replaceWith(config)
-                context.startService(Intent(context, BackCameraSensor::class.java))
-            }
-            CameraFace.FRONT -> {
-                FrontCameraSensor.CONFIG.replaceWith(config)
-                context.startService(Intent(context, FrontCameraSensor::class.java))
-            }
-        }
+        context.startService(Intent(context, CameraSensor::class.java))
     }
 
     override fun stop() {
-        when (config.facing) {
-            CameraFace.BACK -> {
-                context.stopService(Intent(context, BackCameraSensor::class.java))
-
-            }
-            CameraFace.FRONT -> {
-                context.stopService(Intent(context, FrontCameraSensor::class.java))
-            }
-        }
+        context.stopService(Intent(context, CameraSensor::class.java))
     }
 
     override fun sync(force: Boolean) {
-        // TODO (sercant): fix here
-        FrontCameraSensor.instance?.onSync(null)
-        BackCameraSensor.instance?.onSync(null)
+        CameraSensor.instance?.onSync(null)
     }
 
     data class CameraConfig(
@@ -77,7 +53,8 @@ class Camera private constructor(private val context: Context) : ISensorControll
             var retryDelay: Float = 1f, // in seconds
             var videoLength: Float = 10f, // 10 seconds
             var preferredWidth: Int = 1920,
-            var preferredHeight: Int = 1080
+            var preferredHeight: Int = 1080,
+            var secondaryFacing: CameraFace = CameraFace.NONE
     ) : SensorConfig(dbPath = "aware_camera") {
         fun videoLengthInMillis() = videoLength.toLong() * 1000
 
@@ -105,6 +82,7 @@ class Camera private constructor(private val context: Context) : ISensorControll
             dbType = other.dbType
             dbPath = other.dbPath
             dbHost = other.dbHost
+            secondaryFacing = other.secondaryFacing
         }
     }
 
@@ -178,12 +156,17 @@ class Camera private constructor(private val context: Context) : ISensorControll
             config.preferredHeight = height
         }
 
+        fun setSecondaryFacing(face: CameraFace) = apply {
+            config.secondaryFacing = face
+        }
+
         fun build(): Camera = Camera(context).apply {
-            config.replaceWith(this@Builder.config)
+            Camera.config.replaceWith(config)
         }
 
         fun build(other: CameraConfig): Camera = Camera(context).apply {
             config.replaceWith(other)
+            build()
         }
     }
 

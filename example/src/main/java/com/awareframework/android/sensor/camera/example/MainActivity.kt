@@ -2,10 +2,7 @@ package com.awareframework.android.sensor.camera.example
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.content.*
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
@@ -71,6 +68,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val eventReceiver: EventReceiver = EventReceiver()
+
     @SuppressLint("ApplySharedPref")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,11 +109,28 @@ class MainActivity : AppCompatActivity() {
         swipe_to_refresh.setOnRefreshListener {
             refreshVideos()
         }
+
+        try {
+            val info = application.packageManager.getReceiverInfo(ComponentName(application, EventReceiver::class.java), PackageManager.MATCH_DEFAULT_ONLY)
+            if (!info.enabled) {
+                registerReceiver(eventReceiver, IntentFilter().apply {
+                    addAction(Intent.ACTION_USER_PRESENT)
+                })
+            }
+        } catch (e: PackageManager.NameNotFoundException) {
+        }
+
     }
 
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(receiver)
+
+        try {
+            unregisterReceiver(eventReceiver)
+        } catch (e: RuntimeException) {
+            // ignore
+        }
     }
 
     private fun hasPermissions(): Boolean {
