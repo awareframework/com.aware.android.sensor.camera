@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
+import android.preference.PreferenceManager
 import android.support.v4.app.ActivityCompat
 import android.support.v4.content.ContextCompat
 import android.support.v7.app.AppCompatActivity
@@ -17,6 +18,8 @@ import android.view.MenuItem
 import android.widget.Toast
 import com.awareframework.android.core.db.Engine
 import com.awareframework.android.sensor.camera.Camera
+import com.awareframework.android.sensor.camera.CameraFace
+import com.awareframework.android.sensor.camera.R.string.*
 import com.awareframework.android.sensor.camera.example.adapters.VideoListAdapter
 import com.awareframework.android.sensor.camera.model.VideoData
 import kotlinx.android.synthetic.main.activity_main.*
@@ -54,6 +57,9 @@ class MainActivity : AppCompatActivity() {
 
                 refreshVideos()
             }
+            R.id.settings -> {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            }
         }
         return super.onOptionsItemSelected(item)
     }
@@ -79,16 +85,6 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this,
                     permissions,
                     REQUEST_PERMISSION)
-        }
-
-        val config = getSharedPreferences(SHARED_CAMERA_CONFIG, Context.MODE_PRIVATE)
-        val json: String? = config.getString(SHARED_CAMERA_CONFIG_KEY, null)
-
-        if (json == null) {
-            config.edit().putString(SHARED_CAMERA_CONFIG_KEY, Camera.CameraConfig().apply {
-                dbType = Engine.DatabaseType.ROOM
-                contentPath = getExternalFilesDir(Environment.DIRECTORY_MOVIES).absolutePath
-            }.toJson()).commit()
         }
 
         viewManager = StaggeredGridLayoutManager(3, StaggeredGridLayoutManager.VERTICAL)
@@ -120,6 +116,56 @@ class MainActivity : AppCompatActivity() {
         } catch (e: PackageManager.NameNotFoundException) {
         }
 
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        updateConfig()
+    }
+
+    private fun updateConfig() {
+        val sPref = PreferenceManager
+                .getDefaultSharedPreferences(this)
+
+        val cameraConfig = getStoredConfig()
+
+        val storedPrimaryCamera = sPref.getString(getString(key_primary_camera), cameraConfig.facing.toInt().toString())
+        val storedSecondaryCamera = sPref.getString(getString(key_secondary_camera), cameraConfig.secondaryFacing.toInt().toString())
+        val storedVideoBitrate = sPref.getString(getString(key_video_bitrate), cameraConfig.bitrate.toString())
+        val storedVideoFrameRate = sPref.getString(getString(key_video_frame_rate), cameraConfig.frameRate.toString())
+        val storedVideoLength = sPref.getString(getString(key_video_length), cameraConfig.videoLength.toString())
+        val storedDataLabel = sPref.getString(getString(key_data_label), cameraConfig.label)
+
+        cameraConfig.apply {
+            facing = CameraFace.fromInt(storedPrimaryCamera.toInt())
+            secondaryFacing = CameraFace.fromInt(storedSecondaryCamera.toInt())
+            bitrate = storedVideoBitrate.toInt()
+            frameRate = storedVideoFrameRate.toInt()
+            videoLength = storedVideoLength.toFloat()
+            label = storedDataLabel
+        }
+
+        saveStoredConfig(cameraConfig)
+    }
+
+    private fun getStoredConfig(): Camera.CameraConfig =
+            PreferenceManager
+                    .getDefaultSharedPreferences(this)
+                    .getString(SHARED_CAMERA_CONFIG_KEY, null)?.let {
+                        return@let Camera.CameraConfig.fromJson(it)
+                    }
+                    ?: Camera.CameraConfig().apply {
+                        dbType = Engine.DatabaseType.ROOM
+                        contentPath = getExternalFilesDir(Environment.DIRECTORY_MOVIES).absolutePath
+                    }
+
+    private fun saveStoredConfig(config: Camera.CameraConfig) {
+        PreferenceManager
+                .getDefaultSharedPreferences(this)
+                .edit()
+                .putString(SHARED_CAMERA_CONFIG_KEY, config.toJson())
+                .apply()
     }
 
     override fun onDestroy() {

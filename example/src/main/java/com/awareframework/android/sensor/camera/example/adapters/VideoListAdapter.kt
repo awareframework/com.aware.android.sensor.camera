@@ -44,7 +44,7 @@ class VideoListAdapter(private val data: List<VideoData>) :
             thumbnail.apply {
                 setVideoPath(videoData.filePath)
                 setOnPreparedListener {
-                    seekTo(it.duration / 2)
+                    seekTo(100)
 
                     // keep aspect ratio
                     layoutParams.height = it.videoWidth / it.videoHeight * layoutParams.width

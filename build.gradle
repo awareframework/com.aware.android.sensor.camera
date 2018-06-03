@@ -30,8 +30,8 @@ allprojects {
         support_libs = (System.getenv("support_libs") as String ?: "27.1.0")
         version_code = (System.getenv("aware_revision") as Integer ?: 1)
         version_readable = (System.getenv("aware_label") as String ?: "0.0.1")
-        compile_sdk = (System.getenv("compile_sdk") as Integer ?: 26)
-        target_sdk = (System.getenv("target_sdk") as Integer ?: 25)
+        compile_sdk = (System.getenv("compile_sdk") as Integer ?: 27)
+        target_sdk = (System.getenv("target_sdk") as Integer ?: 27)
         minimum_sdk = (System.getenv("minimum_sdk") as Integer ?: 21) //Android 4.4+
         build_tools = (System.getenv("build_tools") ?: "27.0.3")
     }
