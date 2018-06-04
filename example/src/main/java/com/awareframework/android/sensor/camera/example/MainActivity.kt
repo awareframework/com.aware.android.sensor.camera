@@ -2,7 +2,10 @@ package com.awareframework.android.sensor.camera.example
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.*
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
@@ -110,16 +113,12 @@ class MainActivity : AppCompatActivity() {
             refreshVideos()
         }
 
-        try {
-            val info = application.packageManager.getReceiverInfo(ComponentName(application, EventReceiver::class.java), PackageManager.MATCH_DEFAULT_ONLY)
-            if (!info.enabled) {
-                registerReceiver(eventReceiver, IntentFilter().apply {
-                    addAction(Intent.ACTION_USER_PRESENT)
-                })
-            }
-        } catch (e: PackageManager.NameNotFoundException) {
-        }
 
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            registerReceiver(eventReceiver, IntentFilter().apply {
+                addAction(Intent.ACTION_USER_PRESENT)
+            })
+        }
     }
 
     override fun onResume() {
@@ -204,10 +203,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getAllMedia(block: (List<VideoData>) -> Unit) {
-        val config = getSharedPreferences(SHARED_CAMERA_CONFIG, Context.MODE_PRIVATE)
-        val json: String = config.getString(SHARED_CAMERA_CONFIG_KEY, "{}")
         val camera = Camera.Builder(this)
-                .build(Camera.CameraConfig.fromJson(json))
+                .build(getStoredConfig())
 
         thread {
             block(camera.getVideoData())
