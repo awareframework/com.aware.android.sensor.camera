@@ -130,6 +130,7 @@ class MainActivity : AppCompatActivity() {
 
         val cameraConfig = getStoredConfig()
 
+        val storedEnabled = sPref.getBoolean(getString(key_camera_sensor_enabled), true)
         val storedPrimaryCamera = sPref.getString(getString(key_primary_camera), cameraConfig.facing.toInt().toString())
         val storedSecondaryCamera = sPref.getString(getString(key_secondary_camera), cameraConfig.secondaryFacing.toInt().toString())
         val storedVideoBitrate = sPref.getString(getString(key_video_bitrate), cameraConfig.bitrate.toString())
@@ -138,6 +139,7 @@ class MainActivity : AppCompatActivity() {
         val storedDataLabel = sPref.getString(getString(key_data_label), cameraConfig.label)
 
         cameraConfig.apply {
+            enabled = storedEnabled
             facing = CameraFace.fromInt(storedPrimaryCamera.toInt())
             secondaryFacing = CameraFace.fromInt(storedSecondaryCamera.toInt())
             bitrate = storedVideoBitrate.toInt()

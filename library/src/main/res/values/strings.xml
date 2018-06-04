@@ -7,6 +7,7 @@
     <string name="key_video_bitrate">aware_video_bitrate</string>
     <string name="key_video_frame_rate">aware_video_frame_rate</string>
     <string name="key_video_length">aware_video_length</string>
+    <string name="key_camera_sensor_enabled">aware_camera_sensor_enabled</string>
 
     <string name="pref_header_camera">Camera</string>
 
@@ -17,17 +18,29 @@
     <string name="pref_title_data_label">Data label</string>
     <string name="pref_default_data_label"></string>
 
-    <string name="pref_title_default_camera_face">Primary camera direction</string>
-    <string-array name="pref_list_camera_faces">
+    <string name="pref_title_primary_camera_face">Primary camera direction</string>
+    <string name="pref_title_secondary_camera_face">Secondary camera direction</string>
+
+    <string-array name="pref_list_camera_primary_face_values">
+        <item>0</item>
+        <item>1</item>
+    </string-array>
+    <string-array name="pref_list_primary_camera_faces">
+        <item>Front Facing</item>
+        <item>Back Facing</item>
+    </string-array>
+
+    <string-array name="pref_list_secondary_camera_faces">
         <item>Front Facing</item>
         <item>Back Facing</item>
         <item>None</item>
     </string-array>
-    <string-array name="pref_list_camera_face_values">
+    <string-array name="pref_list_camera_secondary_face_values">
         <item>0</item>
         <item>1</item>
         <item>-1</item>
     </string-array>
+
 
     <string name="pref_description_bitrate">Video encoding bit rate in bits per second</string>
     <string name="pref_bitrate">1000000</string>
@@ -37,6 +50,8 @@
 
     <string name="pref_video_length">10</string>
     <string name="pref_description_video_length">Video length in seconds</string>
+    <string name="pref_camera_enabled_summary">Turns video recording on/off</string>
+    <string name="pref_camera_enabled_title">Enabled</string>
     <string-array name="pref_list_second_values">
         <item>1</item>
         <item>2</item>

@@ -269,7 +269,12 @@ class CameraSensor : AwareSensor() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        super.onStartCommand(intent, flags, startId)
+        val superReturn = super.onStartCommand(intent, flags, startId)
+
+        if (!CONFIG.enabled) {
+            stopSelf()
+            return superReturn
+        }
 
         if (!hasPermissionsGranted(VIDEO_PERMISSIONS)) {
             loge("Camera permission is not granted. Gracefully stopping.")

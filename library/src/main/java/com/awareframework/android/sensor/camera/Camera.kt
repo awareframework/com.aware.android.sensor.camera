@@ -33,7 +33,9 @@ class Camera private constructor(private val context: Context) : ISensorControll
     override fun isEnabled(): Boolean = config.enabled
 
     override fun start() {
-        context.startService(Intent(context, CameraSensor::class.java))
+        if (config.enabled) {
+            context.startService(Intent(context, CameraSensor::class.java))
+        }
     }
 
     override fun stop() {
