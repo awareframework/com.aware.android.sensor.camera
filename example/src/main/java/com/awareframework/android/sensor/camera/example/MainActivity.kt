@@ -50,7 +50,11 @@ class MainActivity : AppCompatActivity() {
         when (item?.itemId) {
             R.id.delete_selected -> {
                 viewAdapter.selectionList.forEach {
-                    File(it).delete()
+                    File(it.filePath).delete()
+
+                    if (it.parentFilePath != null) {
+                        File(it.parentFilePath).delete()
+                    }
                 }
 
                 viewAdapter.clearSelections()
@@ -218,6 +222,12 @@ class MainActivity : AppCompatActivity() {
             dataset.addAll(it.filter {
                 File(it.filePath).exists()
             })
+
+            dataset.removeAll { a ->
+                dataset.any { b ->
+                    a.filePath == b.parentFilePath
+                }
+            }
 
             runOnUiThread {
                 viewAdapter.notifyDataSetChanged()

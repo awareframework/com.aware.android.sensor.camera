@@ -1,18 +1,16 @@
 package com.awareframework.android.sensor.camera.example.adapters
 
-import android.app.Dialog
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
+import android.app.AlertDialog
+import android.media.ThumbnailUtils
+import android.provider.MediaStore.Video.Thumbnails.MINI_KIND
 import android.support.v7.widget.CardView
 import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.Window
-import android.widget.RelativeLayout
-import android.widget.VideoView
 import com.awareframework.android.sensor.camera.example.R
 import com.awareframework.android.sensor.camera.model.VideoData
+import kotlinx.android.synthetic.main.video_dialog.*
 import kotlinx.android.synthetic.main.video_preview.view.*
 
 /**
@@ -24,7 +22,7 @@ import kotlinx.android.synthetic.main.video_preview.view.*
 class VideoListAdapter(private val data: List<VideoData>) :
         RecyclerView.Adapter<VideoListAdapter.ViewHolder>() {
 
-    val selectionList: ArrayList<String> = ArrayList()
+    val selectionList: ArrayList<VideoData> = ArrayList()
 
     class ViewHolder(val view: CardView) : RecyclerView.ViewHolder(view)
 
@@ -41,18 +39,9 @@ class VideoListAdapter(private val data: List<VideoData>) :
         val videoData = data[position]
 
         holder.view.apply {
-            thumbnail.apply {
-                setVideoPath(videoData.filePath)
-                setOnPreparedListener {
-                    seekTo(100)
+            thumbnail.setImageBitmap(ThumbnailUtils.createVideoThumbnail(videoData.parentFilePath ?: videoData.filePath, MINI_KIND))
 
-                    // keep aspect ratio
-                    layoutParams.height = it.videoWidth / it.videoHeight * layoutParams.width
-                    requestLayout()
-                }
-            }
-
-            checkbox.isChecked = selectionList.contains(videoData.filePath)
+            checkbox.isChecked = selectionList.contains(videoData)
 
             setOnClickListener {
                 onPreviewClicked(it, videoData)
@@ -65,36 +54,56 @@ class VideoListAdapter(private val data: List<VideoData>) :
         }
     }
 
-    fun onPreviewClicked(view: View?, data: VideoData) {
+    private fun onPreviewClicked(view: View?, data: VideoData) {
         view ?: return
         view.checkbox.isChecked = !view.checkbox.isChecked
 
         if (view.checkbox.isChecked) {
-            if (!selectionList.contains(data.filePath))
-                selectionList.add(data.filePath)
+            if (!selectionList.contains(data))
+                selectionList.add(data)
         } else {
-            selectionList.remove(data.filePath)
+            selectionList.remove(data)
         }
     }
 
-    fun onPreviewLongClicked(view: View?, data: VideoData) {
+    private fun onPreviewLongClicked(view: View?, data: VideoData) {
         view ?: return
         val context = view.context
 
-        val videoView = VideoView(context)
+        val dialog = AlertDialog.Builder(context)
+                .setView(R.layout.video_dialog)
+                .create()
+        dialog.show()
 
-        Dialog(context).apply {
-            requestWindowFeature(Window.FEATURE_NO_TITLE)
-            window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            addContentView(videoView, RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        }.show()
-
-        videoView.apply {
-            setVideoPath(data.filePath)
+        dialog.dialog_primary_video_view?.apply {
+            setVideoPath(data.parentFilePath ?: data.filePath)
             setOnPreparedListener {
                 it.isLooping = true
                 it.start()
             }
+        }
+
+        val primaryVideo = data.parentFilePath ?: data.filePath
+        val secondaryVideo = if (data.parentFilePath != null) data.filePath else null
+
+        dialog.dialog_primary_video_view?.apply {
+            setVideoPath(primaryVideo)
+            setOnPreparedListener {
+                it.isLooping = true
+                it.start()
+            }
+        }
+
+        if (secondaryVideo != null) {
+            dialog.dialog_secondary_video_view?.apply {
+                setVideoPath(secondaryVideo)
+                setOnPreparedListener {
+                    it.isLooping = true
+                    it.start()
+                }
+            }
+        } else {
+            dialog.dialog_secondary_video_view?.visibility = View.GONE
         }
     }
 

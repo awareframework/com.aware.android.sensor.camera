@@ -54,7 +54,8 @@ class CameraSensor : AwareSensor() {
     open class CameraRecordSession(
             private val context: Context,
             private val config: Camera.CameraConfig,
-            private val onSessionComplete: (String) -> Unit) : CameraHandler {
+            private val onSessionComplete: (String, CameraRecordSession) -> Unit,
+            val parent: CameraRecordSession? = null) : CameraHandler {
 
         override val facing: CameraFace
             get() = config.facing
@@ -62,7 +63,7 @@ class CameraSensor : AwareSensor() {
         /**
          * Output file for video
          */
-        private var nextVideoAbsolutePath: String? = null
+        var nextVideoAbsolutePath: String? = null
 
         private var mediaRecorder: MediaRecorder? = null
 
@@ -165,10 +166,10 @@ class CameraSensor : AwareSensor() {
             nextVideoAbsolutePath?.let {
                 logd("Video saved: $it")
 
-                onSessionComplete(it)
+                onSessionComplete(it, this)
             }
 
-            nextVideoAbsolutePath = null
+            // nextVideoAbsolutePath = null
         }
 
         private fun setUpMediaRecorder() {
@@ -178,12 +179,17 @@ class CameraSensor : AwareSensor() {
 
             val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             val rotation = windowManager.defaultDisplay.rotation
-            when (camera.sensorOrientation) {
+            val hint = when (camera.sensorOrientation) {
                 SENSOR_ORIENTATION_DEFAULT_DEGREES ->
-                    mediaRecorder?.setOrientationHint(DEFAULT_ORIENTATIONS.get(rotation))
+                    DEFAULT_ORIENTATIONS.get(rotation)
                 SENSOR_ORIENTATION_INVERSE_DEGREES ->
-                    mediaRecorder?.setOrientationHint(INVERSE_ORIENTATIONS.get(rotation))
+                    INVERSE_ORIENTATIONS.get(rotation)
+                else ->
+                    DEFAULT_ORIENTATIONS.get(rotation)
             }
+            mediaRecorder?.setOrientationHint(hint)
+
+            // logd("rotation: $rotation\tsensorOrientation: ${camera.sensorOrientation}\thint: $hint")
 
             mediaRecorder?.apply {
                 // setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -280,21 +286,25 @@ class CameraSensor : AwareSensor() {
             loge("Camera permission is not granted. Gracefully stopping.")
             stopSelf()
         } else {
+            // so that sessions will not be altered by the static object change
+            val config = CONFIG.copy()
+
             if (primaryCameraRecordSession == null) {
                 primaryCameraRecordSession = object : CameraRecordSession(applicationContext,
-                        CONFIG,
-                        saveVideoRecord) {
+                        config,
+                        onSaveVideoRecord) {
 
                     // Attempting to initialize the secondary camera since some devices doesn't support
                     // having two cameras open at the same time.
                     override fun onCameraOpened() {
                         super.onCameraOpened()
 
-                        if (CONFIG.secondaryFacing != CameraFace.NONE) {
+                        if (CONFIG.secondaryFacing != CameraFace.NONE && CONFIG.facing != CONFIG.secondaryFacing) {
                             secondaryCameraRecordSession = CameraRecordSession(
                                     applicationContext,
-                                    CONFIG.copy().apply { facing = CONFIG.secondaryFacing },
-                                    saveVideoRecord)
+                                    config.copy().apply { facing = CONFIG.secondaryFacing },
+                                    onSaveVideoRecord,
+                                    parent = primaryCameraRecordSession)
 
                             secondaryCameraRecordSession?.record()
                         }
@@ -308,10 +318,13 @@ class CameraSensor : AwareSensor() {
         return START_STICKY
     }
 
-    private val saveVideoRecord: (filePath: String) -> Unit = {
+    private val onSaveVideoRecord: (filePath: String, session: CameraRecordSession) -> Unit = { fp, session ->
+        val parentFilePath = session.parent?.nextVideoAbsolutePath
+
         dbEngine?.save(VideoData(
-                filePath = it,
-                length = CONFIG.videoLength
+                filePath = fp,
+                length = CONFIG.videoLength,
+                parentFilePath = parentFilePath
         ).apply {
             label = CONFIG.label
             timestamp = System.currentTimeMillis()
