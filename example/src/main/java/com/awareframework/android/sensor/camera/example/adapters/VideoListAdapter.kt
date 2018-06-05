@@ -39,7 +39,9 @@ class VideoListAdapter(private val data: List<VideoData>) :
         val videoData = data[position]
 
         holder.view.apply {
-            thumbnail.setImageBitmap(ThumbnailUtils.createVideoThumbnail(videoData.parentFilePath ?: videoData.filePath, MINI_KIND))
+            val preview = ThumbnailUtils.createVideoThumbnail(videoData.parentFilePath
+                    ?: videoData.filePath, MINI_KIND)
+            thumbnail.setImageBitmap(preview)
 
             checkbox.isChecked = selectionList.contains(videoData)
 
@@ -51,6 +53,8 @@ class VideoListAdapter(private val data: List<VideoData>) :
                 onPreviewLongClicked(it, videoData)
                 return@setOnLongClickListener true
             }
+
+            requestLayout()
         }
     }
 
@@ -86,6 +90,17 @@ class VideoListAdapter(private val data: List<VideoData>) :
         val primaryVideo = data.parentFilePath ?: data.filePath
         val secondaryVideo = if (data.parentFilePath != null) data.filePath else null
 
+        val changeTab: (View) -> Unit = {
+            val primaryVideoView = dialog.dialog_primary_video_view
+            val secondaryVideoView = dialog.dialog_secondary_video_view
+
+            primaryVideoView.visibility = if (primaryVideoView.visibility == View.GONE) View.VISIBLE else View.GONE
+            secondaryVideoView.visibility = if (secondaryVideoView.visibility == View.GONE) View.VISIBLE else View.GONE
+        }
+
+        dialog.dialog_primary_video_button?.setOnClickListener(changeTab)
+        dialog.dialog_secondary_video_button?.setOnClickListener(changeTab)
+
         dialog.dialog_primary_video_view?.apply {
             setVideoPath(primaryVideo)
             setOnPreparedListener {
@@ -102,8 +117,10 @@ class VideoListAdapter(private val data: List<VideoData>) :
                     it.start()
                 }
             }
+            dialog.tab_control?.visibility = View.VISIBLE
         } else {
             dialog.dialog_secondary_video_view?.visibility = View.GONE
+            dialog.tab_control?.visibility = View.GONE
         }
     }
 
