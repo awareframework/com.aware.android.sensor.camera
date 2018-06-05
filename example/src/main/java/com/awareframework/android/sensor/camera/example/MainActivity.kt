@@ -27,6 +27,7 @@ import com.awareframework.android.sensor.camera.example.adapters.VideoListAdapte
 import com.awareframework.android.sensor.camera.model.VideoData
 import kotlinx.android.synthetic.main.activity_main.*
 import java.io.File
+import java.util.concurrent.Semaphore
 import kotlin.concurrent.thread
 
 
@@ -35,6 +36,8 @@ class MainActivity : AppCompatActivity() {
     private val dataset: ArrayList<VideoData> = ArrayList()
     private lateinit var viewAdapter: VideoListAdapter
     private lateinit var viewManager: RecyclerView.LayoutManager
+
+    private val semaphore: Semaphore = Semaphore(1)
 
     companion object {
         val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_PHONE_STATE)
@@ -213,23 +216,30 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshVideos() {
         getAllMedia({
-            dataset.clear()
+            try {
+                semaphore.acquire()
+                dataset.clear()
 
-            // filter deleted videos
-            dataset.addAll(it.filter {
-                File(it.filePath).exists()
-            })
+                // filter deleted videos
+                dataset.addAll(it.filter {
+                    File(it.filePath).exists()
+                })
 
-            dataset.removeAll { a ->
-                dataset.any { b ->
-                    a.filePath == b.parentFilePath
+                dataset.removeAll { a ->
+                    dataset.any { b ->
+                        a.filePath == b.parentFilePath
+                    }
                 }
-            }
 
-            runOnUiThread {
-                viewAdapter.notifyDataSetChanged()
+                runOnUiThread {
+                    viewAdapter.notifyDataSetChanged()
 
-                swipe_to_refresh.isRefreshing = false
+                    swipe_to_refresh.isRefreshing = false
+
+                    semaphore.release()
+                }
+            } catch (e: InterruptedException) {
+                e.printStackTrace()
             }
         })
     }
