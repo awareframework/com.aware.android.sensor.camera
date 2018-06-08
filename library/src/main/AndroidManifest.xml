@@ -8,6 +8,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <application>
-        <service android:name=".CameraSensor"/>
+        <service android:name=".CameraSensor"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
 </manifest>

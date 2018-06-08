@@ -1,18 +1,20 @@
 package com.awareframework.android.sensor.camera
 
 import android.Manifest
+import android.app.job.JobParameters
+import android.app.job.JobService
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.os.Handler
-import android.os.IBinder
 import android.util.Log
 import android.util.Size
 import android.util.SparseIntArray
 import android.view.Surface
 import android.view.WindowManager
-import com.awareframework.android.core.AwareSensor
 import com.awareframework.android.core.db.Engine
 import com.awareframework.android.sensor.camera.CameraWrapper.State.*
 import com.awareframework.android.sensor.camera.model.VideoData
@@ -23,7 +25,24 @@ import com.awareframework.android.sensor.camera.model.VideoData
  * @author  sercant
  * @date 29/05/2018
  */
-class CameraSensor : AwareSensor() {
+class CameraSensor : JobService() {
+
+    private var dbEngine: Engine? = null
+    private var sensorSyncReceiver: SensorSyncReceiver? = null
+
+    class SensorSyncReceiver(val sensor: CameraSensor) : BroadcastReceiver() {
+
+        companion object {
+            const val SYNC = "com.aware.android.sensor.SYNC"
+        }
+
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == SYNC) {
+                // TODO (sercant): take the arguments from intent and pass them to the sensor.
+                sensor.onSync(intent)
+            }
+        }
+    }
 
     companion object {
         const val TAG = "AwareCamera"
@@ -173,9 +192,7 @@ class CameraSensor : AwareSensor() {
         }
 
         private fun setUpMediaRecorder() {
-            if (nextVideoAbsolutePath.isNullOrEmpty()) {
-                nextVideoAbsolutePath = getVideoFilePath(config.contentPath)
-            }
+            nextVideoAbsolutePath = getVideoFilePath(config.contentPath)
 
             val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             val rotation = windowManager.defaultDisplay.rotation
@@ -190,6 +207,7 @@ class CameraSensor : AwareSensor() {
             mediaRecorder?.setOrientationHint(hint)
 
             // logd("rotation: $rotation\tsensorOrientation: ${camera.sensorOrientation}\thint: $hint")
+
 
             mediaRecorder?.apply {
                 // setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -260,9 +278,27 @@ class CameraSensor : AwareSensor() {
 
     }
 
+    override fun onStopJob(p0: JobParameters?): Boolean {
+//        stopSelf()
+        return false
+    }
+
+    override fun onStartJob(p0: JobParameters?): Boolean {
+        if (!CONFIG.enabled) {
+            return false
+        } else {
+            startRecordingVideo()
+        }
+        return true
+    }
 
     override fun onCreate() {
         super.onCreate()
+
+        sensorSyncReceiver = SensorSyncReceiver(this)
+        val syncFilter = IntentFilter()
+        syncFilter.addAction(SensorSyncReceiver.SYNC)
+        applicationContext.registerReceiver(sensorSyncReceiver, syncFilter)
 
         dbEngine = Engine.Builder(applicationContext)
                 .setEncryptionKey(CONFIG.dbEncryptionKey)
@@ -277,21 +313,26 @@ class CameraSensor : AwareSensor() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val superReturn = super.onStartCommand(intent, flags, startId)
 
+        // startForeground(0, null)
+
         if (!CONFIG.enabled) {
             stopSelf()
             return superReturn
+        } else {
+            startRecordingVideo()
         }
 
+        return START_STICKY
+    }
+
+    fun startRecordingVideo() {
         if (!hasPermissionsGranted(VIDEO_PERMISSIONS)) {
             loge("Camera permission is not granted. Gracefully stopping.")
             stopSelf()
         } else {
-            // so that sessions will not be altered by the static object change
-            val config = CONFIG.copy()
-
             if (primaryCameraRecordSession == null) {
                 primaryCameraRecordSession = object : CameraRecordSession(applicationContext,
-                        config,
+                        CONFIG,
                         onSaveVideoRecord) {
 
                     // Attempting to initialize the secondary camera since some devices doesn't support
@@ -302,7 +343,7 @@ class CameraSensor : AwareSensor() {
                         if (CONFIG.secondaryFacing != CameraFace.NONE && CONFIG.facing != CONFIG.secondaryFacing) {
                             secondaryCameraRecordSession = CameraRecordSession(
                                     applicationContext,
-                                    config.copy().apply { facing = CONFIG.secondaryFacing },
+                                    CONFIG.copy().apply { facing = CONFIG.secondaryFacing },
                                     onSaveVideoRecord,
                                     parent = primaryCameraRecordSession)
 
@@ -314,8 +355,6 @@ class CameraSensor : AwareSensor() {
 
             primaryCameraRecordSession?.record()
         }
-
-        return START_STICKY
     }
 
     private val onSaveVideoRecord: (filePath: String, session: CameraRecordSession) -> Unit = { fp, session ->
@@ -337,6 +376,9 @@ class CameraSensor : AwareSensor() {
     override fun onDestroy() {
         super.onDestroy()
 
+        applicationContext.unregisterReceiver(sensorSyncReceiver)
+        sensorSyncReceiver = null
+
         primaryCameraRecordSession?.destroy()
         secondaryCameraRecordSession?.destroy()
 
@@ -350,12 +392,22 @@ class CameraSensor : AwareSensor() {
                 applicationContext.checkCallingOrSelfPermission(it) != PackageManager.PERMISSION_GRANTED
             }
 
-    override fun onBind(p0: Intent?): IBinder? {
-        return null
+//    override fun onBind(p0: Intent?): IBinder? {
+//        return null
+//    }
+
+    fun onSync(intent: Intent?) {
+        // TODO: sync
     }
 
-    override fun onSync(intent: Intent?) {
-        // TODO: sync
+    abstract class SensorBroadcastReceiver : BroadcastReceiver() {
+        companion object {
+            const val SENSOR_START_ENABLED = "com.aware.android.sensor.SENSOR_START"
+            const val SENSOR_STOP_ALL = "com.aware.android.sensor.SENSOR_STOP"
+//            const val AWARE_SYNC = "com.aware.android.sensor.AWARE_SYNC"
+        }
+
+        abstract override fun onReceive(context: Context?, intent: Intent?)
     }
 }
 

@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
         val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_PHONE_STATE)
         const val REQUEST_PERMISSION = 1
 
-        const val SHARED_CAMERA_CONFIG = "camera_config"
+        // const val SHARED_CAMERA_CONFIG = "camera_config"
         const val SHARED_CAMERA_CONFIG_KEY = "config"
     }
 
@@ -69,6 +69,9 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.settings -> {
                 startActivity(Intent(this, SettingsActivity::class.java))
+            }
+            R.id.record_now -> {
+                sendBroadcast(Intent(EventReceiver.ACTION_RECORD_NOW))
             }
         }
         return super.onOptionsItemSelected(item)
@@ -120,6 +123,7 @@ class MainActivity : AppCompatActivity() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             registerReceiver(eventReceiver, IntentFilter().apply {
                 addAction(Intent.ACTION_USER_PRESENT)
+                addAction(EventReceiver.ACTION_RECORD_NOW)
             })
         }
     }

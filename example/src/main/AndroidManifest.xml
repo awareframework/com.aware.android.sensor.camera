@@ -23,6 +23,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.USER_PRESENT" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <action android:name="com.awareframework.android.sensor.camera.example.RECORD_NOW" />
             </intent-filter>
         </receiver>
 

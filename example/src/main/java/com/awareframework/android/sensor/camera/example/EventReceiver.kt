@@ -17,12 +17,16 @@ import com.awareframework.android.sensor.camera.Camera
  */
 class EventReceiver : BroadcastReceiver() {
 
+    companion object {
+        const val ACTION_RECORD_NOW = "com.awareframework.android.sensor.camera.example.RECORD_NOW"
+    }
+
     override fun onReceive(context: Context?, intent: Intent?) {
         context ?: return
         intent ?: return
 
         when (intent.action) {
-            ACTION_USER_PRESENT -> {
+            ACTION_USER_PRESENT, ACTION_RECORD_NOW -> {
                 val camera = Camera.Builder(context).build(getStoredConfig(context))
                 camera.start()
             }

@@ -1,5 +1,8 @@
 package com.awareframework.android.sensor.camera
 
+import android.app.job.JobInfo
+import android.app.job.JobScheduler
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import com.awareframework.android.core.db.Engine
@@ -21,7 +24,6 @@ class Camera private constructor(private val context: Context) : ISensorControll
         val config: CameraConfig = CameraSensor.CONFIG
     }
 
-
     override fun disable() {
         config.enabled = false
     }
@@ -34,7 +36,18 @@ class Camera private constructor(private val context: Context) : ISensorControll
 
     override fun start() {
         if (config.enabled) {
-            context.startService(Intent(context, CameraSensor::class.java))
+            val builder = JobInfo.Builder(0, ComponentName(context, CameraSensor::class.java))
+            builder.setMinimumLatency(1)
+            builder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
+            // Finish configuring the builder
+            builder.run {
+                setRequiresDeviceIdle(false)
+                setRequiresCharging(false)
+            }
+            (context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler).schedule(builder.build())
+
+//            CameraSensor.instance?.startRecordingVideo() ?:
+//                context.startService(Intent(context, CameraSensor::class.java))
         }
     }
 

@@ -100,6 +100,7 @@ class CameraWrapper(private val context: Context,
             state = State.IDLE
 
             handler.onCameraError(error)
+            stopRecordingVideo()
         }
 
     }
