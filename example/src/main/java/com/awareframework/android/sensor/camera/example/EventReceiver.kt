@@ -29,6 +29,8 @@ class EventReceiver : BroadcastReceiver() {
             ACTION_USER_PRESENT, ACTION_RECORD_NOW -> {
                 val camera = Camera.Builder(context).build(getStoredConfig(context))
                 camera.start()
+
+                camera.startRecording()
             }
         }
     }

@@ -5,6 +5,7 @@ import android.app.job.JobScheduler
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.support.v4.content.ContextCompat
 import com.awareframework.android.core.db.Engine
 import com.awareframework.android.core.model.ISensorController
 import com.awareframework.android.core.model.SensorConfig
@@ -21,6 +22,9 @@ class Camera private constructor(private val context: Context) : ISensorControll
 
     companion object {
         const val ACTION_VIDEO_RECORDED = "com.awareframework.android.sensor.camera.video_recorded"
+        const val ACTION_START_RECORDING = "com.awareframework.android.sensor.camera.start_recording"
+        const val ACTION_STOP_RECORDING = "com.awareframework.android.sensor.camera.stop_recording"
+
         val config: CameraConfig = CameraSensor.CONFIG
     }
 
@@ -36,19 +40,29 @@ class Camera private constructor(private val context: Context) : ISensorControll
 
     override fun start() {
         if (config.enabled) {
-            val builder = JobInfo.Builder(0, ComponentName(context, CameraSensor::class.java))
-            builder.setMinimumLatency(1)
-            builder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
-            // Finish configuring the builder
-            builder.run {
-                setRequiresDeviceIdle(false)
-                setRequiresCharging(false)
-            }
-            (context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler).schedule(builder.build())
+//            val builder = JobInfo.Builder(0, ComponentName(context, CameraSensor::class.java))
+//            builder.setMinimumLatency(1)
+//            builder.setOverrideDeadline(2)
+//            builder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
+//            // Finish configuring the builder
+//            builder.run {
+//                setRequiresDeviceIdle(false)
+//                setRequiresCharging(false)
+//            }
+//            (context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler).schedule(builder.build())
 
-//            CameraSensor.instance?.startRecordingVideo() ?:
-//                context.startService(Intent(context, CameraSensor::class.java))
+            if (CameraSensor.instance == null) {
+                ContextCompat.startForegroundService(context, Intent(context, CameraSensor::class.java))
+            }
         }
+    }
+
+    fun startRecording() {
+        context.sendBroadcast(Intent(ACTION_START_RECORDING))
+    }
+
+    fun stopRecording() {
+        context.sendBroadcast(Intent(ACTION_STOP_RECORDING))
     }
 
     override fun stop() {

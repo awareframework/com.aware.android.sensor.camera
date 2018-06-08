@@ -1,20 +1,27 @@
 package com.awareframework.android.sensor.camera
 
 import android.Manifest
-import android.app.job.JobParameters
-import android.app.job.JobService
-import android.content.BroadcastReceiver
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.media.MediaRecorder
+import android.os.Build
 import android.os.Handler
+import android.os.IBinder
+import android.support.annotation.RequiresApi
+import android.support.v4.app.NotificationCompat
+import android.support.v4.app.NotificationCompat.PRIORITY_MIN
 import android.util.Log
 import android.util.Size
 import android.util.SparseIntArray
 import android.view.Surface
 import android.view.WindowManager
+import com.awareframework.android.core.AwareSensor
 import com.awareframework.android.core.db.Engine
 import com.awareframework.android.sensor.camera.CameraWrapper.State.*
 import com.awareframework.android.sensor.camera.model.VideoData
@@ -25,24 +32,7 @@ import com.awareframework.android.sensor.camera.model.VideoData
  * @author  sercant
  * @date 29/05/2018
  */
-class CameraSensor : JobService() {
-
-    private var dbEngine: Engine? = null
-    private var sensorSyncReceiver: SensorSyncReceiver? = null
-
-    class SensorSyncReceiver(val sensor: CameraSensor) : BroadcastReceiver() {
-
-        companion object {
-            const val SYNC = "com.aware.android.sensor.SYNC"
-        }
-
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == SYNC) {
-                // TODO (sercant): take the arguments from intent and pass them to the sensor.
-                sensor.onSync(intent)
-            }
-        }
-    }
+class CameraSensor : AwareSensor() {
 
     companion object {
         const val TAG = "AwareCamera"
@@ -278,27 +268,21 @@ class CameraSensor : JobService() {
 
     }
 
-    override fun onStopJob(p0: JobParameters?): Boolean {
-//        stopSelf()
-        return false
-    }
-
-    override fun onStartJob(p0: JobParameters?): Boolean {
-        if (!CONFIG.enabled) {
-            return false
-        } else {
-            startRecordingVideo()
+    val cameraBroadcastReceiver = object : AwareSensor.SensorBroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent ?: return
+            when (intent.action) {
+                Camera.ACTION_START_RECORDING -> startRecordingVideo()
+                Camera.ACTION_STOP_RECORDING -> {
+                    primaryCameraRecordSession?.destroy()
+                    secondaryCameraRecordSession?.destroy()
+                }
+            }
         }
-        return true
     }
 
     override fun onCreate() {
         super.onCreate()
-
-        sensorSyncReceiver = SensorSyncReceiver(this)
-        val syncFilter = IntentFilter()
-        syncFilter.addAction(SensorSyncReceiver.SYNC)
-        applicationContext.registerReceiver(sensorSyncReceiver, syncFilter)
 
         dbEngine = Engine.Builder(applicationContext)
                 .setEncryptionKey(CONFIG.dbEncryptionKey)
@@ -306,6 +290,11 @@ class CameraSensor : JobService() {
                 .setPath(CONFIG.dbPath)
                 .setType(CONFIG.dbType)
                 .build()
+
+        registerReceiver(cameraBroadcastReceiver, IntentFilter().apply {
+            addAction(Camera.ACTION_START_RECORDING)
+            addAction(Camera.ACTION_STOP_RECORDING)
+        })
 
         instance = this
     }
@@ -318,9 +307,14 @@ class CameraSensor : JobService() {
         if (!CONFIG.enabled) {
             stopSelf()
             return superReturn
-        } else {
-            startRecordingVideo()
         }
+
+        startForeground()
+
+        logd("Camera sensor started.")
+//        else {
+//            startRecordingVideo()
+//        }
 
         return START_STICKY
     }
@@ -376,15 +370,14 @@ class CameraSensor : JobService() {
     override fun onDestroy() {
         super.onDestroy()
 
-        applicationContext.unregisterReceiver(sensorSyncReceiver)
-        sensorSyncReceiver = null
-
         primaryCameraRecordSession?.destroy()
         secondaryCameraRecordSession?.destroy()
 
         dbEngine?.close()
 
         instance = null
+
+        unregisterReceiver(cameraBroadcastReceiver)
     }
 
     private fun hasPermissionsGranted(permissions: Array<String>) =
@@ -396,18 +389,45 @@ class CameraSensor : JobService() {
 //        return null
 //    }
 
-    fun onSync(intent: Intent?) {
+    override fun onSync(intent: Intent?) {
         // TODO: sync
     }
 
-    abstract class SensorBroadcastReceiver : BroadcastReceiver() {
-        companion object {
-            const val SENSOR_START_ENABLED = "com.aware.android.sensor.SENSOR_START"
-            const val SENSOR_STOP_ALL = "com.aware.android.sensor.SENSOR_STOP"
-//            const val AWARE_SYNC = "com.aware.android.sensor.AWARE_SYNC"
-        }
+    override fun onBind(intent: Intent?): IBinder {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 
-        abstract override fun onReceive(context: Context?, intent: Intent?)
+    private fun startForeground() {
+        val channelId =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    createNotificationChannel()
+                } else {
+                    // If earlier version channel ID is not used
+                    // https://developer.android.com/reference/android/support/v4/app/NotificationCompat.Builder.html#NotificationCompat.Builder(android.content.Context)
+                    ""
+                }
+
+        val notificationBuilder = NotificationCompat.Builder(this, channelId)
+        val notification = notificationBuilder.setOngoing(true)
+                .setSmallIcon(R.drawable.ic_fiber_smart_record_black_24dp)
+                .setPriority(PRIORITY_MIN)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .setContentText("Aware camera service is running.")
+                .build()
+        startForeground(101, notification)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createNotificationChannel(): String {
+        val channelId = "aware_camera_service"
+        val channelName = "Aware Camera Service"
+        val chan = NotificationChannel(channelId,
+                channelName, NotificationManager.IMPORTANCE_NONE)
+        chan.lightColor = Color.BLUE
+        chan.lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+        val service = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        service.createNotificationChannel(chan)
+        return channelId
     }
 }
 
