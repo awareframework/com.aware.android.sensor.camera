@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
     private val semaphore: Semaphore = Semaphore(1)
 
     companion object {
-        val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_PHONE_STATE)
+        val permissions = arrayOf(Manifest.permission.CAMERA)
         const val REQUEST_PERMISSION = 1
 
         // const val SHARED_CAMERA_CONFIG = "camera_config"
@@ -182,6 +182,7 @@ class MainActivity : AppCompatActivity() {
                     ?: Camera.CameraConfig().apply {
                         dbType = Engine.DatabaseType.ROOM
                         contentPath = getExternalFilesDir(Environment.DIRECTORY_MOVIES).absolutePath
+                        enabled = true
                     }
 
     private fun saveStoredConfig(config: Camera.CameraConfig) {

@@ -134,9 +134,10 @@ class CameraWrapper(private val context: Context,
     }
 
     private fun chooseCameraId(face: CameraFace, cameraManager: CameraManager): String {
+        // NOTE (sercant): Can't understand why but LENS_FACING_FRONT is somehow the back camera.
         val lensCharacteristics = when (face) {
-            CameraFace.FRONT -> CameraCharacteristics.LENS_FACING_FRONT.toString()
-            CameraFace.BACK -> CameraCharacteristics.LENS_FACING_BACK.toString()
+            CameraFace.BACK -> CameraCharacteristics.LENS_FACING_FRONT.toString()
+            CameraFace.FRONT -> CameraCharacteristics.LENS_FACING_BACK.toString()
             else -> CameraCharacteristics.LENS_FACING_BACK.toString()
         }
 

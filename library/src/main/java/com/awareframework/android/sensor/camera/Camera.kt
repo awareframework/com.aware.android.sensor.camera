@@ -74,7 +74,7 @@ class Camera private constructor(private val context: Context) : ISensorControll
     }
 
     data class CameraConfig(
-            var bitrate: Int = 10000000,
+            var bitrate: Int = 100000000,
             var frameRate: Int = 30,
             var facing: CameraFace = CameraFace.BACK,
             var contentPath: String = "",

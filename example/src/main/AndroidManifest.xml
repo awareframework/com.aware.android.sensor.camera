@@ -3,10 +3,10 @@
     package="com.awareframework.android.sensor.camera.example">
 
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
-    <application>
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
             android:label="@string/app_name"
@@ -23,7 +23,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.USER_PRESENT" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <action android:name="com.awareframework.android.sensor.camera.example.RECORD_NOW" />
+                <action android:name=".RECORD_NOW" />
             </intent-filter>
         </receiver>
 
