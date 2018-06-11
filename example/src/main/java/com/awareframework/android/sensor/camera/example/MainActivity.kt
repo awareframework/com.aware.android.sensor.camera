@@ -39,12 +39,60 @@ class MainActivity : AppCompatActivity() {
 
     private val semaphore: Semaphore = Semaphore(1)
 
+    var isPaused: Boolean = false
+
+    private val eventReceiver: EventReceiver = EventReceiver()
+
+    private val cameraObserver: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent ?: return
+            context ?: return
+
+            when (intent.action) {
+                Camera.ACTION_CAMERA_CONFIGURE_FAILED -> {
+                    makeToast(context, "Camera configuration failed!")
+                }
+                Camera.ACTION_CAMERA_OPENED -> {
+                    makeToast(context, "Camera opened.")
+                }
+                Camera.ACTION_CAMERA_CLOSED -> {
+                    makeToast(context, "Camera closed.")
+                }
+                Camera.ACTION_CAMERA_ERROR -> {
+                    makeToast(context, "Camera error occured! error: ${intent.getIntExtra(Camera.EXTRA_CAMERA_ERROR, -1)}")
+                }
+                Camera.ACTION_VIDEO_RECORDED -> Handler().postDelayed({
+                    makeToast(context, "New recording arrived.")
+                    refreshVideos()
+                }, 1000)
+            }
+        }
+
+        fun makeToast(context: Context, text: String) {
+            if (!isPaused)
+                Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+        }
+    }
+
     companion object {
-        val permissions = arrayOf(Manifest.permission.CAMERA)
+        val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE)
         const val REQUEST_PERMISSION = 1
 
         // const val SHARED_CAMERA_CONFIG = "camera_config"
         const val SHARED_CAMERA_CONFIG_KEY = "config"
+
+        fun getStoredConfig(context: Context): Camera.CameraConfig =
+                PreferenceManager
+                        .getDefaultSharedPreferences(context)
+                        .getString(SHARED_CAMERA_CONFIG_KEY, null)?.let {
+                            return@let Camera.CameraConfig.fromJson(it)
+                        }
+                        ?: Camera.CameraConfig().apply {
+                            dbType = Engine.DatabaseType.ROOM
+                            contentPath = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES).absolutePath
+                            enabled = true
+                        }
+
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -80,18 +128,6 @@ class MainActivity : AppCompatActivity() {
         return super.onOptionsItemSelected(item)
     }
 
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            when (intent.action) {
-                Camera.ACTION_VIDEO_RECORDED -> Handler().postDelayed({
-                    refreshVideos()
-                }, 1000)
-            }
-        }
-    }
-
-    private val eventReceiver: EventReceiver = EventReceiver()
-
     @SuppressLint("ApplySharedPref")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,14 +150,17 @@ class MainActivity : AppCompatActivity() {
 
         refreshVideos()
 
-        registerReceiver(receiver, IntentFilter().apply {
-            addAction(Camera.ACTION_VIDEO_RECORDED)
-        })
-
         swipe_to_refresh.setOnRefreshListener {
             refreshVideos()
         }
 
+        registerReceiver(cameraObserver, IntentFilter().apply {
+            addAction(Camera.ACTION_CAMERA_CONFIGURE_FAILED)
+            addAction(Camera.ACTION_CAMERA_OPENED)
+            addAction(Camera.ACTION_CAMERA_CLOSED)
+            addAction(Camera.ACTION_CAMERA_ERROR)
+            addAction(Camera.ACTION_VIDEO_RECORDED)
+        })
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             registerReceiver(eventReceiver, IntentFilter().apply {
@@ -133,10 +172,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        isPaused = false
 
         updateConfig()
 
-        val config = getStoredConfig()
+        val config = getStoredConfig(this)
 
         val camera = Camera.Builder(this).build()
 
@@ -146,11 +186,17 @@ class MainActivity : AppCompatActivity() {
             camera.stop()
     }
 
+    override fun onPause() {
+        super.onPause()
+
+        isPaused = true
+    }
+
     private fun updateConfig() {
         val sPref = PreferenceManager
                 .getDefaultSharedPreferences(this)
 
-        val cameraConfig = getStoredConfig()
+        val cameraConfig = getStoredConfig(this)
 
         val storedEnabled = sPref.getBoolean(getString(key_camera_sensor_enabled), true)
         val storedPrimaryCamera = sPref.getString(getString(key_primary_camera), cameraConfig.facing.toInt().toString())
@@ -173,18 +219,6 @@ class MainActivity : AppCompatActivity() {
         saveStoredConfig(cameraConfig)
     }
 
-    private fun getStoredConfig(): Camera.CameraConfig =
-            PreferenceManager
-                    .getDefaultSharedPreferences(this)
-                    .getString(SHARED_CAMERA_CONFIG_KEY, null)?.let {
-                        return@let Camera.CameraConfig.fromJson(it)
-                    }
-                    ?: Camera.CameraConfig().apply {
-                        dbType = Engine.DatabaseType.ROOM
-                        contentPath = getExternalFilesDir(Environment.DIRECTORY_MOVIES).absolutePath
-                        enabled = true
-                    }
-
     private fun saveStoredConfig(config: Camera.CameraConfig) {
         PreferenceManager
                 .getDefaultSharedPreferences(this)
@@ -195,7 +229,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(receiver)
+        unregisterReceiver(cameraObserver)
 
         try {
             unregisterReceiver(eventReceiver)
@@ -224,7 +258,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun getAllMedia(block: (List<VideoData>) -> Unit) {
         val camera = Camera.Builder(this)
-                .build(getStoredConfig())
+                .build(getStoredConfig(this))
 
         thread {
             block(camera.getVideoData())

@@ -1,8 +1,5 @@
 package com.awareframework.android.sensor.camera
 
-import android.app.job.JobInfo
-import android.app.job.JobScheduler
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.support.v4.content.ContextCompat
@@ -26,6 +23,20 @@ class Camera private constructor(private val context: Context) : ISensorControll
         const val ACTION_STOP_RECORDING = "com.awareframework.android.sensor.camera.stop_recording"
 
         val config: CameraConfig = CameraSensor.CONFIG
+
+        const val ACTION_CAMERA_SESSION_END = "aware_camera_session_end"
+        const val ACTION_CAMERA_CONFIGURE_FAILED = "aware_camera_configure_failed"
+        const val ACTION_CAMERA_CONFIGURED = "aware_camera_configured"
+        const val ACTION_CAMERA_OPENED = "aware_camera_opened"
+        const val ACTION_CAMERA_CLOSED = "aware_camera_closed"
+        const val ACTION_CAMERA_DISCONNECTED = "aware_camera_disconnected"
+
+        const val ACTION_CAMERA_ERROR = "aware_camera_error"
+        const val EXTRA_CAMERA_ERROR = "error"
+
+        const val ACTION_CAMERA_CAPTURE_SIZE_SELECTION = "aware_camera_capture_size_selection"
+        const val EXTRA_CAMERA_CAPTURE_SIZE_SELECTION_WIDTH = "size.width"
+        const val EXTRA_CAMERA_CAPTURE_SIZE_SELECTION_HEIGHT = "size.height"
     }
 
     override fun disable() {
@@ -76,7 +87,7 @@ class Camera private constructor(private val context: Context) : ISensorControll
     data class CameraConfig(
             var bitrate: Int = 100000000,
             var frameRate: Int = 30,
-            var facing: CameraFace = CameraFace.BACK,
+            var facing: CameraFace = CameraFace.FRONT,
             var contentPath: String = "",
             var retryCount: Int = 3,
             var retryDelay: Float = 1f, // in seconds

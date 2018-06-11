@@ -117,11 +117,15 @@ class CameraSensor : AwareSensor() {
 
         override fun onCameraSessionEnd() {
             camera.close()
+
+            context.sendBroadcast(Intent(Camera.ACTION_CAMERA_SESSION_END))
         }
 
         override fun onCameraConfigureFailure() {
             loge("Camera configuration failed.")
             onCameraClosed()
+
+            context.sendBroadcast(Intent(Camera.ACTION_CAMERA_CONFIGURE_FAILED))
         }
 
         override fun onCameraConfigured() {
@@ -131,29 +135,47 @@ class CameraSensor : AwareSensor() {
             Handler().postDelayed({
                 stopRecording()
             }, (config.videoLength * 1000).toLong())
+
+            context.sendBroadcast(Intent(Camera.ACTION_CAMERA_CONFIGURED))
         }
 
         override fun onCameraOpened() {
             startRecording()
+
+            context.sendBroadcast(Intent(Camera.ACTION_CAMERA_OPENED))
         }
 
         override fun onCameraClosed() {
             mediaRecorder?.release()
             mediaRecorder = null
+
+            context.sendBroadcast(Intent(Camera.ACTION_CAMERA_CLOSED))
         }
 
         override fun onCameraDisconnected() {
             loge("Camera disconnected.")
             onCameraClosed()
+
+            context.sendBroadcast(Intent(Camera.ACTION_CAMERA_DISCONNECTED))
         }
 
         override fun onCameraError(error: Int) {
             loge("Camera error occured. Error code: $error")
             nextVideoAbsolutePath = null // so that we don't save the file.
+
+            context.sendBroadcast(Intent(Camera.ACTION_CAMERA_ERROR).apply {
+                putExtra(Camera.EXTRA_CAMERA_ERROR, error)
+            })
         }
 
         override fun onCaptureSizeSelection(sizes: Array<Size>): Size {
             videoSize = chooseVideoSize(sizes, config.preferredWidth, config.preferredHeight)
+
+            context.sendBroadcast(Intent(Camera.ACTION_CAMERA_CAPTURE_SIZE_SELECTION).apply {
+                putExtra(Camera.EXTRA_CAMERA_CAPTURE_SIZE_SELECTION_WIDTH, videoSize.width)
+                putExtra(Camera.EXTRA_CAMERA_CAPTURE_SIZE_SELECTION_HEIGHT, videoSize.height)
+            })
+
             return videoSize
         }
 

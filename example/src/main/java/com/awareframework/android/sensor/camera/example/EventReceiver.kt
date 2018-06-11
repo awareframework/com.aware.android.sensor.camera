@@ -27,22 +27,11 @@ class EventReceiver : BroadcastReceiver() {
 
         when (intent.action) {
             ACTION_USER_PRESENT, ACTION_RECORD_NOW -> {
-                val camera = Camera.Builder(context).build(getStoredConfig(context))
+                val camera = Camera.Builder(context).build(MainActivity.getStoredConfig(context))
                 camera.start()
 
                 camera.startRecording()
             }
         }
     }
-
-    private fun getStoredConfig(context: Context): Camera.CameraConfig =
-            PreferenceManager
-                    .getDefaultSharedPreferences(context)
-                    .getString(MainActivity.SHARED_CAMERA_CONFIG_KEY, null)?.let {
-                        return@let Camera.CameraConfig.fromJson(it)
-                    }
-                    ?: Camera.CameraConfig().apply {
-                        dbType = Engine.DatabaseType.ROOM
-                        contentPath = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES).absolutePath
-                    }
 }
