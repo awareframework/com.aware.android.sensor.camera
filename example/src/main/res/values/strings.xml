@@ -1,7 +1,9 @@
 <resources>
     <string name="app_name">Video Logger</string>
-    <string name="delete_selected">Delete Selected</string>
-    <string name="settings">Settings</string>
+    <string name="menu_delete_selected">Delete Selected</string>
+    <string name="menu_settings">Settings</string>
     <string name="title_activity_settings">Settings</string>
     <string name="menu_record_now">Record Now</string>
+    <string name="menu_info">Info</string>
+    <string name="usage_hint">Tap to select, long press to preview.</string>
 </resources>

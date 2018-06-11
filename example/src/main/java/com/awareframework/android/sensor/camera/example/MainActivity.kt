@@ -73,6 +73,9 @@ class MainActivity : AppCompatActivity() {
             R.id.record_now -> {
                 sendBroadcast(Intent(EventReceiver.ACTION_RECORD_NOW))
             }
+            R.id.help -> {
+                Toast.makeText(this, getString(R.string.usage_hint), Toast.LENGTH_LONG).show()
+            }
         }
         return super.onOptionsItemSelected(item)
     }
@@ -132,6 +135,15 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
 
         updateConfig()
+
+        val config = getStoredConfig()
+
+        val camera = Camera.Builder(this).build()
+
+        if (config.enabled)
+            camera.start()
+        else
+            camera.stop()
     }
 
     private fun updateConfig() {
