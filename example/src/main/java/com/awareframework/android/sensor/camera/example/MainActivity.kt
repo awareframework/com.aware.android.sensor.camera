@@ -43,6 +43,8 @@ class MainActivity : AppCompatActivity() {
 
     private val eventReceiver: EventReceiver = EventReceiver()
 
+    lateinit var camera: Camera
+
     private val cameraObserver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent ?: return
@@ -75,7 +77,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.RECEIVE_BOOT_COMPLETED)
         const val REQUEST_PERMISSION = 1
 
         // const val SHARED_CAMERA_CONFIG = "camera_config"
@@ -119,7 +121,9 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(this, SettingsActivity::class.java))
             }
             R.id.record_now -> {
-                sendBroadcast(Intent(EventReceiver.ACTION_RECORD_NOW))
+                sendBroadcast(Intent(this, EventReceiver::class.java).apply {
+                    action = EventReceiver.ACTION_RECORD_NOW
+                })
             }
             R.id.help -> {
                 Toast.makeText(this, getString(R.string.usage_hint), Toast.LENGTH_LONG).show()
@@ -148,6 +152,9 @@ class MainActivity : AppCompatActivity() {
             adapter = viewAdapter
         }
 
+        camera = Camera.Builder(this)
+                .build(getStoredConfig(this))
+
         refreshVideos()
 
         swipe_to_refresh.setOnRefreshListener {
@@ -163,10 +170,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            registerReceiver(eventReceiver, IntentFilter().apply {
-                addAction(Intent.ACTION_USER_PRESENT)
-                addAction(EventReceiver.ACTION_RECORD_NOW)
-            })
+            ContextCompat.startForegroundService(this, Intent(this, BroadcastService::class.java))
         }
     }
 
@@ -178,7 +182,7 @@ class MainActivity : AppCompatActivity() {
 
         val config = getStoredConfig(this)
 
-        val camera = Camera.Builder(this).build()
+        camera = Camera.Builder(this).build(config)
 
         if (config.enabled)
             camera.start()
@@ -230,12 +234,6 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(cameraObserver)
-
-        try {
-            unregisterReceiver(eventReceiver)
-        } catch (e: RuntimeException) {
-            // ignore
-        }
     }
 
     private fun hasPermissions(): Boolean {
@@ -257,9 +255,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getAllMedia(block: (List<VideoData>) -> Unit) {
-        val camera = Camera.Builder(this)
-                .build(getStoredConfig(this))
-
         thread {
             block(camera.getVideoData())
         }
