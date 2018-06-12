@@ -45,24 +45,20 @@ class VideoListAdapter(private val data: List<VideoData>) :
 
             checkbox.isChecked = selectionList.contains(videoData)
 
-            setOnClickListener {
-                onPreviewClicked(it, videoData)
+            checkbox.setOnCheckedChangeListener { _, isChecked ->
+                onPreviewCheckChanged(isChecked, videoData)
             }
 
-            setOnLongClickListener {
-                onPreviewLongClicked(it, videoData)
-                return@setOnLongClickListener true
+            setOnClickListener {
+                onPreviewClicked(it, videoData)
             }
 
             requestLayout()
         }
     }
 
-    private fun onPreviewClicked(view: View?, data: VideoData) {
-        view ?: return
-        view.checkbox.isChecked = !view.checkbox.isChecked
-
-        if (view.checkbox.isChecked) {
+    private fun onPreviewCheckChanged(isChecked: Boolean, data: VideoData) {
+        if (isChecked) {
             if (!selectionList.contains(data))
                 selectionList.add(data)
         } else {
@@ -70,7 +66,7 @@ class VideoListAdapter(private val data: List<VideoData>) :
         }
     }
 
-    private fun onPreviewLongClicked(view: View?, data: VideoData) {
+    private fun onPreviewClicked(view: View?, data: VideoData) {
         view ?: return
         val context = view.context
 
